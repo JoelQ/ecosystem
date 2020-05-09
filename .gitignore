@@ -2,3 +2,9 @@
 elm-stuff
 # elm-repl generated files
 repl-temp-*
+
+# parceljs build directory
+dist
+
+node_modules
+.cache
