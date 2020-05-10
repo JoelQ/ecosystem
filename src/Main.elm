@@ -136,27 +136,23 @@ header =
 
 controls : SimSpeed -> Html Msg
 controls currentSpeed =
-    Html.section []
+    Html.section [ Html.Attributes.class "controls" ]
         [ speedControls currentSpeed
         ]
 
 
 speedControls : SimSpeed -> Html Msg
 speedControls currentSpeed =
-    let
-        legend =
-            Html.legend [] [ Html.text "Speed" ]
-
-        radios =
-            radioGroup
-                { selectedItem = currentSpeed
-                , tagger = SimSpeedChanged
-                , toLabel = speedLabel
-                , groupName = "speed"
-                }
-                [ Pause, Play, DoubleSpeed ]
-    in
-    Html.fieldset [] (legend :: radios)
+    Html.fieldset []
+        [ Html.legend [] [ Html.text "Speed" ]
+        , multiToggle
+            { selectedItem = currentSpeed
+            , tagger = SimSpeedChanged
+            , toLabel = speedLabel
+            , groupName = "speed"
+            }
+            [ Pause, Play, DoubleSpeed ]
+        ]
 
 
 speedLabel : SimSpeed -> String
@@ -174,7 +170,9 @@ speedLabel speed =
 
 gameBoard : Grid -> Html a
 gameBoard grid =
-    Html.table [] <| List.map viewRow <| List.Extra.groupsOf width grid
+    Html.section [ Html.Attributes.class "game-board" ]
+        [ Html.table [] <| List.map viewRow <| List.Extra.groupsOf width grid
+        ]
 
 
 viewRow : List Cell -> Html a
@@ -212,20 +210,33 @@ type alias RadioConfig a msg =
     }
 
 
+multiToggle : RadioConfig a msg -> List a -> Html msg
+multiToggle config items =
+    Html.div
+        [ Html.Attributes.class "multi-toggle" ]
+        (radioGroup config items)
+
+
 radioGroup : RadioConfig a msg -> List a -> List (Html msg)
 radioGroup config items =
-    List.map (radio config) items
+    List.concat <| List.map (radio config) items
 
 
-radio : RadioConfig a msg -> a -> Html msg
+radio : RadioConfig a msg -> a -> List (Html msg)
 radio { selectedItem, tagger, toLabel, groupName } item =
-    Html.label []
-        [ Html.text (toLabel item)
-        , Html.input
-            [ Html.Attributes.type_ "radio"
-            , Html.Attributes.name groupName
-            , Html.Events.onClick (tagger item)
-            , Html.Attributes.checked (selectedItem == item)
-            ]
-            []
+    let
+        id =
+            toLabel item
+                |> String.toLower
+                |> String.replace " " "-"
+    in
+    [ Html.input
+        [ Html.Attributes.type_ "radio"
+        , Html.Attributes.name groupName
+        , Html.Events.onClick (tagger item)
+        , Html.Attributes.checked (selectedItem == item)
+        , Html.Attributes.id id
         ]
+        []
+    , Html.label [ Html.Attributes.for id ] [ Html.text (toLabel item) ]
+    ]
