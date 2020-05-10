@@ -1,121 +1,35 @@
 module Main exposing (main)
 
+import Browser
 import Html exposing (Html)
 import List.Extra
 
 
-main : Html a
+main : Program Flags Model Msg
 main =
-    view initialModel
+    Browser.element
+        { init = init
+        , view = view
+        , update = update
+        , subscriptions = always Sub.none
+        }
+
+
+type alias Flags =
+    ()
+
+
+init : Flags -> ( Model, Cmd Msg )
+init _ =
+    ( [], Cmd.none )
+
+
+
+-- MODEL
 
 
 type alias Model =
     List Cell
-
-
-initialModel : Model
-initialModel =
-    [ Fox
-    , Rabbit
-    , Empty
-    , Empty
-    , Fox
-    , Empty
-    , Empty
-    , Empty
-    , Rabbit
-    , Rabbit
-    , Empty
-    , Empty
-    , Rabbit
-    , Empty
-    , Fox
-    , Empty
-    , Rabbit
-    , Empty
-    , Empty
-    , Empty
-    , Rabbit
-    , Empty
-    , Empty
-    , Rabbit
-    , Rabbit
-    , Empty
-    , Empty
-    , Empty
-    , Rabbit
-    , Empty
-    , Empty
-    , Empty
-    , Rabbit
-    , Empty
-    , Fox
-    , Empty
-    , Empty
-    , Empty
-    , Rabbit
-    , Empty
-    , Fox
-    , Empty
-    , Empty
-    , Empty
-    , Rabbit
-    , Rabbit
-    , Empty
-    , Empty
-    , Empty
-    , Rabbit
-    , Empty
-    , Fox
-    , Empty
-    , Empty
-    , Empty
-    , Rabbit
-    , Rabbit
-    , Empty
-    , Empty
-    , Empty
-    , Rabbit
-    , Empty
-    , Empty
-    , Fox
-    , Empty
-    , Empty
-    , Fox
-    , Empty
-    , Empty
-    , Empty
-    , Empty
-    , Rabbit
-    , Empty
-    , Fox
-    , Empty
-    , Empty
-    , Empty
-    , Rabbit
-    , Rabbit
-    , Empty
-    , Empty
-    , Rabbit
-    , Empty
-    , Fox
-    , Empty
-    , Empty
-    , Empty
-    , Rabbit
-    , Rabbit
-    , Empty
-    , Empty
-    , Empty
-    , Rabbit
-    , Rabbit
-    , Empty
-    , Empty
-    , Empty
-    , Rabbit
-    , Empty
-    , Fox
-    ]
 
 
 width : Int
@@ -127,6 +41,21 @@ type Cell
     = Fox
     | Rabbit
     | Empty
+
+
+
+-- UPDATE
+
+
+type Msg
+    = Noop
+
+
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        Noop ->
+            ( model, Cmd.none )
 
 
 
