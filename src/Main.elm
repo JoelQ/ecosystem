@@ -94,9 +94,19 @@ subscriptions _ =
 view : Model -> Html a
 view model =
     Html.main_ []
-        [ Html.h1 [] [ Html.text "Ecosystem" ]
-        , Html.table [] <| List.map viewRow <| List.Extra.groupsOf width model
+        [ header
+        , gameBoard model
         ]
+
+
+header : Html a
+header =
+    Html.h1 [] [ Html.text "Ecosystem" ]
+
+
+gameBoard : Grid -> Html a
+gameBoard grid =
+    Html.table [] <| List.map viewRow <| List.Extra.groupsOf width grid
 
 
 viewRow : List Cell -> Html a
