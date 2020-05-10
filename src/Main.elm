@@ -2,6 +2,8 @@ module Main exposing (main)
 
 import Browser
 import Html exposing (Html)
+import Html.Attributes
+import Html.Events
 import List.Extra
 import Random exposing (Generator)
 import Time
@@ -23,7 +25,7 @@ type alias Flags =
 
 init : Flags -> ( Model, Cmd Msg )
 init _ =
-    ( [], Random.generate GridGenerated gridGenerator )
+    ( initialModel, Random.generate GridGenerated gridGenerator )
 
 
 
@@ -31,7 +33,22 @@ init _ =
 
 
 type alias Model =
-    Grid
+    { speed : SimSpeed
+    , grid : Grid
+    }
+
+
+initialModel : Model
+initialModel =
+    { speed = Pause
+    , grid = []
+    }
+
+
+type SimSpeed
+    = Play
+    | Pause
+    | DoubleSpeed
 
 
 type alias Grid =
@@ -66,16 +83,20 @@ cellGenerator =
 type Msg
     = GridGenerated Grid
     | Tick
+    | SimSpeedChanged SimSpeed
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        GridGenerated grid ->
-            ( grid, Cmd.none )
+        GridGenerated newGrid ->
+            ( { model | grid = newGrid }, Cmd.none )
 
         Tick ->
             ( model, Random.generate GridGenerated gridGenerator )
+
+        SimSpeedChanged newSpeed ->
+            ( { model | speed = newSpeed }, Cmd.none )
 
 
 
@@ -83,25 +104,72 @@ update msg model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Time.every 1000 (\_ -> Tick)
+subscriptions model =
+    case model.speed of
+        Play ->
+            Time.every 1000 (\_ -> Tick)
+
+        DoubleSpeed ->
+            Time.every 500 (\_ -> Tick)
+
+        Pause ->
+            Sub.none
 
 
 
 -- VIEW
 
 
-view : Model -> Html a
+view : Model -> Html Msg
 view model =
     Html.main_ []
         [ header
-        , gameBoard model
+        , gameBoard model.grid
+        , controls model.speed
         ]
 
 
 header : Html a
 header =
     Html.h1 [] [ Html.text "Ecosystem" ]
+
+
+controls : SimSpeed -> Html Msg
+controls currentSpeed =
+    Html.section []
+        [ speedControls currentSpeed
+        ]
+
+
+speedControls : SimSpeed -> Html Msg
+speedControls currentSpeed =
+    let
+        legend =
+            Html.legend [] [ Html.text "Speed" ]
+
+        radios =
+            radioGroup
+                { selectedItem = currentSpeed
+                , tagger = SimSpeedChanged
+                , toLabel = speedLabel
+                , groupName = "speed"
+                }
+                [ Pause, Play, DoubleSpeed ]
+    in
+    Html.fieldset [] (legend :: radios)
+
+
+speedLabel : SimSpeed -> String
+speedLabel speed =
+    case speed of
+        Play ->
+            "Play"
+
+        DoubleSpeed ->
+            "Fast"
+
+        Pause ->
+            "Pause"
 
 
 gameBoard : Grid -> Html a
@@ -130,3 +198,34 @@ cellSymbol cell =
 
         Empty ->
             ""
+
+
+
+-- FORM HELPERS
+
+
+type alias RadioConfig a msg =
+    { selectedItem : a
+    , tagger : a -> msg
+    , toLabel : a -> String
+    , groupName : String
+    }
+
+
+radioGroup : RadioConfig a msg -> List a -> List (Html msg)
+radioGroup config items =
+    List.map (radio config) items
+
+
+radio : RadioConfig a msg -> a -> Html msg
+radio { selectedItem, tagger, toLabel, groupName } item =
+    Html.label []
+        [ Html.text (toLabel item)
+        , Html.input
+            [ Html.Attributes.type_ "radio"
+            , Html.Attributes.name groupName
+            , Html.Events.onClick (tagger item)
+            , Html.Attributes.checked (selectedItem == item)
+            ]
+            []
+        ]
