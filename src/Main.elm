@@ -3,6 +3,8 @@ module Main exposing (main)
 import Browser
 import Html exposing (Html)
 import List.Extra
+import Random exposing (Generator)
+import Time
 
 
 main : Program Flags Model Msg
@@ -11,7 +13,7 @@ main =
         { init = init
         , view = view
         , update = update
-        , subscriptions = always Sub.none
+        , subscriptions = subscriptions
         }
 
 
@@ -21,7 +23,7 @@ type alias Flags =
 
 init : Flags -> ( Model, Cmd Msg )
 init _ =
-    ( [], Cmd.none )
+    ( [], Random.generate GridGenerated gridGenerator )
 
 
 
@@ -29,6 +31,10 @@ init _ =
 
 
 type alias Model =
+    Grid
+
+
+type alias Grid =
     List Cell
 
 
@@ -43,19 +49,42 @@ type Cell
     | Empty
 
 
+gridGenerator : Generator Grid
+gridGenerator =
+    Random.list 100 cellGenerator
+
+
+cellGenerator : Generator Cell
+cellGenerator =
+    Random.weighted ( 1, Fox ) [ ( 2, Rabbit ), ( 3, Empty ) ]
+
+
 
 -- UPDATE
 
 
 type Msg
-    = Noop
+    = GridGenerated Grid
+    | Tick
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        Noop ->
-            ( model, Cmd.none )
+        GridGenerated grid ->
+            ( grid, Cmd.none )
+
+        Tick ->
+            ( model, Random.generate GridGenerated gridGenerator )
+
+
+
+-- SUBSCRIPTIONS
+
+
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    Time.every 1000 (\_ -> Tick)
 
 
 
