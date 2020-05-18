@@ -114,6 +114,7 @@ update msg model =
 {-| Rules:
 
   - Foxes eat nearby rabbits
+  - Foxes move if can't eat
   - Rabbits move if next to fox
 
 -}
@@ -139,7 +140,7 @@ stepFox : Position -> Grid -> Grid
 stepFox position grid =
     case nearbyRabbits position grid of
         [] ->
-            grid
+            moveToEmptyFrom position grid
 
         ( rabbitPos, _ ) :: rest ->
             CellGrid.set rabbitPos Empty grid
@@ -152,6 +153,16 @@ stepRabbit position grid =
 
     else
         moveToSafetyFrom position grid
+
+
+moveToEmptyFrom : Position -> Grid -> Grid
+moveToEmptyFrom position grid =
+    case nearbyEmpties position grid of
+        [] ->
+            grid
+
+        ( newPos, _ ) :: rest ->
+            move { from = position, to = newPos } Fox grid
 
 
 moveToSafetyFrom : Position -> Grid -> Grid
@@ -188,6 +199,11 @@ nearbyRabbits =
 nearbyFoxes : Position -> Grid -> List ( Position, Cell )
 nearbyFoxes =
     neighborsWhere (isFox << Tuple.second)
+
+
+nearbyEmpties : Position -> Grid -> List ( Position, Cell )
+nearbyEmpties =
+    neighborsWhere (isEmpty << Tuple.second)
 
 
 nearbySafeEmpties : Position -> Grid -> List ( Position, Cell )
