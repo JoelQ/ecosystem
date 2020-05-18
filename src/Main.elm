@@ -1,7 +1,7 @@
 module Main exposing (main)
 
 import Browser
-import CellGrid exposing (CellGrid)
+import CellGrid exposing (CellGrid, Position)
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
@@ -114,6 +114,7 @@ update msg model =
 {-| Rules:
 
   - Foxes eat nearby rabbits
+  - Rabbits move if next to fox
 
 -}
 step : Grid -> Grid
@@ -121,20 +122,20 @@ step grid =
     cellGridFoldlWithPosition stepAnimal grid grid
 
 
-stepAnimal : CellGrid.Position -> Cell -> Grid -> Grid
+stepAnimal : Position -> Cell -> Grid -> Grid
 stepAnimal position cell grid =
     case cell of
         Fox ->
             stepFox position grid
 
         Rabbit ->
-            grid
+            stepRabbit position grid
 
         Empty ->
             grid
 
 
-stepFox : CellGrid.Position -> Grid -> Grid
+stepFox : Position -> Grid -> Grid
 stepFox position grid =
     case nearbyRabbits position grid of
         [] ->
@@ -144,17 +145,99 @@ stepFox position grid =
             CellGrid.set rabbitPos Empty grid
 
 
-nearbyRabbits : CellGrid.Position -> Grid -> List ( CellGrid.Position, Cell )
-nearbyRabbits position grid =
+stepRabbit : Position -> Grid -> Grid
+stepRabbit position grid =
+    if isSafe position grid then
+        grid
+
+    else
+        moveToSafetyFrom position grid
+
+
+moveToSafetyFrom : Position -> Grid -> Grid
+moveToSafetyFrom position grid =
+    case nearbySafeEmpties position grid of
+        [] ->
+            grid
+
+        ( safePos, _ ) :: rest ->
+            move { from = position, to = safePos } Rabbit grid
+
+
+{-| Moving an entity requires two operations on a grid:
+
+1.  Setting the original position to "Empty"
+2.  Inserting the entity at the new position
+
+Wrapping this up in a move function makes it harder to accidentally delete or
+duplicate the entity by forgetting either of the required steps
+
+-}
+move : { from : Position, to : Position } -> Cell -> Grid -> Grid
+move { from, to } cell grid =
+    grid
+        |> CellGrid.set from Empty
+        |> CellGrid.set to cell
+
+
+nearbyRabbits : Position -> Grid -> List ( Position, Cell )
+nearbyRabbits =
+    neighborsWhere (isRabbit << Tuple.second)
+
+
+nearbyFoxes : Position -> Grid -> List ( Position, Cell )
+nearbyFoxes =
+    neighborsWhere (isFox << Tuple.second)
+
+
+nearbySafeEmpties : Position -> Grid -> List ( Position, Cell )
+nearbySafeEmpties position grid =
+    neighborsWhere (isSafeEmpty grid) position grid
+
+
+neighborsWhere : (( Position, Cell ) -> Bool) -> Position -> Grid -> List ( Position, Cell )
+neighborsWhere filterFunc position grid =
     grid
         |> neighborsWithPositions position
-        |> List.filter (isRabbit << Tuple.second)
+        |> List.filter filterFunc
+
+
+isSafeEmpty : Grid -> ( Position, Cell ) -> Bool
+isSafeEmpty grid ( position, cell ) =
+    isEmpty cell && isSafe position grid
+
+
+isSafe : Position -> Grid -> Bool
+isSafe position grid =
+    grid
+        |> nearbyFoxes position
+        |> List.isEmpty
 
 
 isRabbit : Cell -> Bool
 isRabbit cell =
     case cell of
         Rabbit ->
+            True
+
+        _ ->
+            False
+
+
+isFox : Cell -> Bool
+isFox cell =
+    case cell of
+        Fox ->
+            True
+
+        _ ->
+            False
+
+
+isEmpty : Cell -> Bool
+isEmpty cell =
+    case cell of
+        Empty ->
             True
 
         _ ->
@@ -308,20 +391,20 @@ radio { selectedItem, tagger, toLabel, groupName } item =
 -- CELL GRID HELPERS
 
 
-cellGridFoldlWithPosition : (CellGrid.Position -> a -> b -> b) -> b -> CellGrid a -> b
+cellGridFoldlWithPosition : (Position -> a -> b -> b) -> b -> CellGrid a -> b
 cellGridFoldlWithPosition stepFunc initial grid =
     grid
         |> cellGridWithPositions
         |> CellGrid.foldl (\( pos, item ) acc -> stepFunc pos item acc) initial
 
 
-neighborsWithPositions : CellGrid.Position -> CellGrid a -> List ( CellGrid.Position, a )
+neighborsWithPositions : Position -> CellGrid a -> List ( Position, a )
 neighborsWithPositions position grid =
     grid
         |> cellGridWithPositions
         |> CellGrid.neighbors position
 
 
-cellGridWithPositions : CellGrid a -> CellGrid ( CellGrid.Position, a )
+cellGridWithPositions : CellGrid a -> CellGrid ( Position, a )
 cellGridWithPositions grid =
-    CellGrid.indexedMap (\x y item -> ( CellGrid.Position x y, item )) grid
+    CellGrid.indexedMap (\x y item -> ( Position x y, item )) grid
