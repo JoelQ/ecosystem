@@ -1,6 +1,7 @@
 module Main exposing (main)
 
 import Browser
+import CellGrid exposing (CellGrid)
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
@@ -41,7 +42,7 @@ type alias Model =
 initialModel : Model
 initialModel =
     { speed = Pause
-    , grid = []
+    , grid = emptyGrid
     }
 
 
@@ -52,12 +53,17 @@ type SimSpeed
 
 
 type alias Grid =
-    List Cell
+    CellGrid Cell
 
 
-width : Int
-width =
-    10
+emptyGrid : Grid
+emptyGrid =
+    CellGrid.repeat gridDimensions Empty
+
+
+gridDimensions : CellGrid.Dimensions
+gridDimensions =
+    { rows = 10, columns = 10 }
 
 
 type Cell
@@ -68,7 +74,13 @@ type Cell
 
 gridGenerator : Generator Grid
 gridGenerator =
-    Random.list 100 cellGenerator
+    Random.list (gridDimensions.columns * gridDimensions.rows) cellGenerator
+        |> Random.map gridFromList
+
+
+gridFromList : List Cell -> Grid
+gridFromList =
+    Maybe.withDefault emptyGrid << CellGrid.fromList gridDimensions
 
 
 cellGenerator : Generator Cell
@@ -171,7 +183,7 @@ speedLabel speed =
 gameBoard : Grid -> Html a
 gameBoard grid =
     Html.section [ Html.Attributes.class "game-board" ]
-        [ Html.table [] <| List.map viewRow <| List.Extra.groupsOf width grid
+        [ Html.table [] <| List.map viewRow <| CellGrid.toLists grid
         ]
 
 
