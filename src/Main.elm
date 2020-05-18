@@ -105,10 +105,60 @@ update msg model =
             ( { model | grid = newGrid }, Cmd.none )
 
         Tick ->
-            ( model, Random.generate GridGenerated gridGenerator )
+            ( { model | grid = step model.grid }, Cmd.none )
 
         SimSpeedChanged newSpeed ->
             ( { model | speed = newSpeed }, Cmd.none )
+
+
+{-| Rules:
+
+  - Foxes eat nearby rabbits
+
+-}
+step : Grid -> Grid
+step grid =
+    cellGridFoldlWithPosition stepAnimal grid grid
+
+
+stepAnimal : CellGrid.Position -> Cell -> Grid -> Grid
+stepAnimal position cell grid =
+    case cell of
+        Fox ->
+            stepFox position grid
+
+        Rabbit ->
+            grid
+
+        Empty ->
+            grid
+
+
+stepFox : CellGrid.Position -> Grid -> Grid
+stepFox position grid =
+    case nearbyRabbits position grid of
+        [] ->
+            grid
+
+        ( rabbitPos, _ ) :: rest ->
+            CellGrid.set rabbitPos Empty grid
+
+
+nearbyRabbits : CellGrid.Position -> Grid -> List ( CellGrid.Position, Cell )
+nearbyRabbits position grid =
+    grid
+        |> neighborsWithPositions position
+        |> List.filter (isRabbit << Tuple.second)
+
+
+isRabbit : Cell -> Bool
+isRabbit cell =
+    case cell of
+        Rabbit ->
+            True
+
+        _ ->
+            False
 
 
 
@@ -252,3 +302,26 @@ radio { selectedItem, tagger, toLabel, groupName } item =
         []
     , Html.label [ Html.Attributes.for id ] [ Html.text (toLabel item) ]
     ]
+
+
+
+-- CELL GRID HELPERS
+
+
+cellGridFoldlWithPosition : (CellGrid.Position -> a -> b -> b) -> b -> CellGrid a -> b
+cellGridFoldlWithPosition stepFunc initial grid =
+    grid
+        |> cellGridWithPositions
+        |> CellGrid.foldl (\( pos, item ) acc -> stepFunc pos item acc) initial
+
+
+neighborsWithPositions : CellGrid.Position -> CellGrid a -> List ( CellGrid.Position, a )
+neighborsWithPositions position grid =
+    grid
+        |> cellGridWithPositions
+        |> CellGrid.neighbors position
+
+
+cellGridWithPositions : CellGrid a -> CellGrid ( CellGrid.Position, a )
+cellGridWithPositions grid =
+    CellGrid.indexedMap (\x y item -> ( CellGrid.Position x y, item )) grid
