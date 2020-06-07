@@ -67,9 +67,18 @@ gridDimensions =
 
 
 type Cell
-    = Fox
+    = FoxCell Fox
     | Rabbit
     | Empty
+
+
+type alias Fox =
+    { food : Int }
+
+
+initialFox : Fox
+initialFox =
+    { food = 5 }
 
 
 gridGenerator : Generator Grid
@@ -85,7 +94,7 @@ gridFromList =
 
 cellGenerator : Generator Cell
 cellGenerator =
-    Random.weighted ( 1, Fox ) [ ( 2, Rabbit ), ( 3, Empty ) ]
+    Random.weighted ( 1, FoxCell initialFox ) [ ( 2, Rabbit ), ( 3, Empty ) ]
 
 
 
@@ -126,8 +135,8 @@ step grid =
 stepAnimal : Position -> Cell -> Grid -> Grid
 stepAnimal position cell grid =
     case cell of
-        Fox ->
-            stepFox position grid
+        FoxCell fox ->
+            stepFox position fox grid
 
         Rabbit ->
             stepRabbit position grid
@@ -136,14 +145,31 @@ stepAnimal position cell grid =
             grid
 
 
-stepFox : Position -> Grid -> Grid
-stepFox position grid =
-    case nearbyRabbits position grid of
+stepFox : Position -> Fox -> Grid -> Grid
+stepFox position fox grid =
+    if fox.food > 0 then
+        foxActions position { fox | food = fox.food - 1 } grid
+
+    else
+        -- Fox starved to death
+        setEmpty position grid
+
+
+foxActions : Position -> Fox -> Grid -> Grid
+foxActions foxPos fox grid =
+    case nearbyRabbits foxPos grid of
         [] ->
-            moveToEmptyFrom position grid
+            moveToEmptyFrom foxPos (FoxCell fox) grid
 
         ( rabbitPos, _ ) :: rest ->
-            CellGrid.set rabbitPos Empty grid
+            eatRabbit { rabbitPos = rabbitPos, foxPos = foxPos } fox grid
+
+
+eatRabbit : { rabbitPos : Position, foxPos : Position } -> Fox -> Grid -> Grid
+eatRabbit { rabbitPos, foxPos } fox grid =
+    grid
+        |> setEmpty rabbitPos
+        |> CellGrid.set foxPos (FoxCell { fox | food = fox.food + 5 })
 
 
 stepRabbit : Position -> Grid -> Grid
@@ -155,14 +181,14 @@ stepRabbit position grid =
         moveToSafetyFrom position grid
 
 
-moveToEmptyFrom : Position -> Grid -> Grid
-moveToEmptyFrom position grid =
+moveToEmptyFrom : Position -> Cell -> Grid -> Grid
+moveToEmptyFrom position cell grid =
     case nearbyEmpties position grid of
         [] ->
             grid
 
         ( newPos, _ ) :: rest ->
-            move { from = position, to = newPos } Fox grid
+            move { from = position, to = newPos } cell grid
 
 
 moveToSafetyFrom : Position -> Grid -> Grid
@@ -187,8 +213,13 @@ duplicate the entity by forgetting either of the required steps
 move : { from : Position, to : Position } -> Cell -> Grid -> Grid
 move { from, to } cell grid =
     grid
-        |> CellGrid.set from Empty
+        |> setEmpty from
         |> CellGrid.set to cell
+
+
+setEmpty : Position -> Grid -> Grid
+setEmpty position grid =
+    CellGrid.set position Empty grid
 
 
 nearbyRabbits : Position -> Grid -> List ( Position, Cell )
@@ -243,7 +274,7 @@ isRabbit cell =
 isFox : Cell -> Bool
 isFox cell =
     case cell of
-        Fox ->
+        FoxCell _ ->
             True
 
         _ ->
@@ -343,20 +374,37 @@ viewRow cells =
 
 viewCell : Cell -> Html a
 viewCell cell =
-    Html.td [] [ Html.text (cellSymbol cell) ]
+    Html.td [] [ cellSymbol cell ]
 
 
-cellSymbol : Cell -> String
+cellSymbol : Cell -> Html a
 cellSymbol cell =
     case cell of
-        Fox ->
-            "\u{1F98A}"
+        FoxCell fox ->
+            hungerAwareValue fox.food (Html.text "\u{1F98A}")
 
         Rabbit ->
-            "🐰"
+            Html.text "🐰"
 
         Empty ->
-            ""
+            Html.text ""
+
+
+hungerAwareValue : Int -> Html a -> Html a
+hungerAwareValue food content =
+    Html.span [ Html.Attributes.class <| hungerClass food ] [ content ]
+
+
+hungerClass : Int -> String
+hungerClass food =
+    if food > 3 then
+        "full"
+
+    else if food > 1 then
+        "hungry"
+
+    else
+        "starving"
 
 
 
