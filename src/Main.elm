@@ -114,7 +114,8 @@ update msg model =
 {-| Rules:
 
   - Foxes eat nearby rabbits
-  - Foxes move if can't eat
+  - Foxes reproduce if they have enough food
+  - Foxes move if can't do anything else
   - Rabbits move if next to fox
   - Rabbits eat if in safe position
 
@@ -150,9 +151,19 @@ initialFox =
     { food = 5 }
 
 
+babyFox : Fox
+babyFox =
+    { food = foxBirthCost }
+
+
 foxCostOfLiving : Int
 foxCostOfLiving =
     1
+
+
+foxBirthCost : Int
+foxBirthCost =
+    3
 
 
 stepFox : Position -> Fox -> Grid -> Grid
@@ -169,10 +180,22 @@ foxActions : Position -> Fox -> Grid -> Grid
 foxActions foxPos fox grid =
     case nearbyRabbits foxPos grid of
         [] ->
-            moveToEmptyFrom foxPos (FoxCell fox) grid
+            case foxValidBirthPosition foxPos fox grid of
+                Just babyPos ->
+                    birthFox { babyPos = babyPos, parentPos = foxPos } fox grid
+
+                Nothing ->
+                    moveToEmptyFrom foxPos (FoxCell fox) grid
 
         ( rabbitPos, _ ) :: rest ->
             eatRabbit { rabbitPos = rabbitPos, foxPos = foxPos } fox grid
+
+
+birthFox : { babyPos : Position, parentPos : Position } -> Fox -> Grid -> Grid
+birthFox { babyPos, parentPos } parent grid =
+    grid
+        |> CellGrid.set parentPos (FoxCell { parent | food = parent.food - foxBirthCost })
+        |> CellGrid.set babyPos (FoxCell { food = foxBirthCost })
 
 
 eatRabbit : { rabbitPos : Position, foxPos : Position } -> Fox -> Grid -> Grid
@@ -180,6 +203,20 @@ eatRabbit { rabbitPos, foxPos } fox grid =
     grid
         |> setEmpty rabbitPos
         |> CellGrid.set foxPos (FoxCell { fox | food = fox.food + rabbitNutrition })
+
+
+foxValidBirthPosition : Position -> Fox -> Grid -> Maybe Position
+foxValidBirthPosition position fox grid =
+    if fox.food > foxBirthCost + foxCostOfLiving then
+        case nearbyEmpties position grid of
+            [] ->
+                Nothing
+
+            ( birthPos, _ ) :: _ ->
+                Just birthPos
+
+    else
+        Nothing
 
 
 
