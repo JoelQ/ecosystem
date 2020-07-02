@@ -117,7 +117,8 @@ update msg model =
   - Foxes reproduce if they have enough food
   - Foxes move if can't do anything else
   - Rabbits move if next to fox
-  - Rabbits eat if in safe position
+  - Rabbits reproduce if they have enough food
+  - Rabbits eat if can't do anything else
 
 -}
 step : Grid -> Grid
@@ -247,6 +248,11 @@ grassNutrition =
     3
 
 
+rabbitBirthCost : Int
+rabbitBirthCost =
+    2
+
+
 stepRabbit : Position -> Rabbit -> Grid -> Grid
 stepRabbit position rabbit grid =
     if rabbit.food > 0 then
@@ -260,7 +266,12 @@ stepRabbit position rabbit grid =
 rabbitActions : Position -> Rabbit -> Grid -> Grid
 rabbitActions position rabbit grid =
     if isSafe position grid then
-        eatGrass position rabbit grid
+        case rabbitValidBirthPosition position rabbit grid of
+            Just babyPos ->
+                birthRabbit { babyPos = babyPos, parentPos = position } rabbit grid
+
+            Nothing ->
+                eatGrass position rabbit grid
 
     else
         moveToSafetyFrom position rabbit grid
@@ -275,6 +286,13 @@ eatGrass position rabbit grid =
     CellGrid.set position (RabbitCell postMealRabbit) grid
 
 
+birthRabbit : { babyPos : Position, parentPos : Position } -> Rabbit -> Grid -> Grid
+birthRabbit { babyPos, parentPos } parent grid =
+    grid
+        |> CellGrid.set parentPos (RabbitCell { parent | food = parent.food - rabbitBirthCost })
+        |> CellGrid.set babyPos (RabbitCell { food = rabbitBirthCost })
+
+
 moveToSafetyFrom : Position -> Rabbit -> Grid -> Grid
 moveToSafetyFrom position rabbit grid =
     case nearbySafeEmpties position grid of
@@ -283,6 +301,20 @@ moveToSafetyFrom position rabbit grid =
 
         ( safePos, _ ) :: rest ->
             move { from = position, to = safePos } (RabbitCell rabbit) grid
+
+
+rabbitValidBirthPosition : Position -> Rabbit -> Grid -> Maybe Position
+rabbitValidBirthPosition position rabbit grid =
+    if rabbit.food > rabbitBirthCost + rabbitCostOfLiving then
+        case nearbySafeEmpties position grid of
+            [] ->
+                Nothing
+
+            ( birthPos, _ ) :: _ ->
+                Just birthPos
+
+    else
+        Nothing
 
 
 
