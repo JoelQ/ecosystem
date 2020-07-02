@@ -158,11 +158,16 @@ stepAnimal position cell grid =
 stepFox : Position -> Fox -> Grid -> Grid
 stepFox position fox grid =
     if fox.food > 0 then
-        foxActions position { fox | food = fox.food - 1 } grid
+        foxActions position { fox | food = fox.food - foxCostOfLiving } grid
 
     else
         -- Fox starved to death
         setEmpty position grid
+
+
+foxCostOfLiving : Int
+foxCostOfLiving =
+    1
 
 
 foxActions : Position -> Fox -> Grid -> Grid
@@ -179,17 +184,32 @@ eatRabbit : { rabbitPos : Position, foxPos : Position } -> Fox -> Grid -> Grid
 eatRabbit { rabbitPos, foxPos } fox grid =
     grid
         |> setEmpty rabbitPos
-        |> CellGrid.set foxPos (FoxCell { fox | food = fox.food + 5 })
+        |> CellGrid.set foxPos (FoxCell { fox | food = fox.food + rabbitNutrition })
 
 
 stepRabbit : Position -> Rabbit -> Grid -> Grid
 stepRabbit position rabbit grid =
     if rabbit.food > 0 then
-        rabbitActions position { rabbit | food = rabbit.food - 1 } grid
+        rabbitActions position { rabbit | food = rabbit.food - rabbitCostOfLiving } grid
 
     else
         -- Rabbit starved to death
         setEmpty position grid
+
+
+rabbitCostOfLiving : Int
+rabbitCostOfLiving =
+    1
+
+
+rabbitNutrition : Int
+rabbitNutrition =
+    5
+
+
+grassNutrition : Int
+grassNutrition =
+    3
 
 
 rabbitActions : Position -> Rabbit -> Grid -> Grid
@@ -203,7 +223,11 @@ rabbitActions position rabbit grid =
 
 eatGrass : Position -> Rabbit -> Grid -> Grid
 eatGrass position rabbit grid =
-    CellGrid.set position (RabbitCell { rabbit | food = rabbit.food + 3 }) grid
+    let
+        postMealRabbit =
+            { rabbit | food = rabbit.food + grassNutrition }
+    in
+    CellGrid.set position (RabbitCell postMealRabbit) grid
 
 
 moveToEmptyFrom : Position -> Cell -> Grid -> Grid
