@@ -72,24 +72,6 @@ type Cell
     | Empty
 
 
-type alias Fox =
-    { food : Int }
-
-
-initialFox : Fox
-initialFox =
-    { food = 5 }
-
-
-type alias Rabbit =
-    { food : Int }
-
-
-initialRabbit : Rabbit
-initialRabbit =
-    { food = 5 }
-
-
 gridGenerator : Generator Grid
 gridGenerator =
     Random.list (gridDimensions.columns * gridDimensions.rows) cellGenerator
@@ -155,6 +137,24 @@ stepAnimal position cell grid =
             grid
 
 
+
+-- FOX
+
+
+type alias Fox =
+    { food : Int }
+
+
+initialFox : Fox
+initialFox =
+    { food = 5 }
+
+
+foxCostOfLiving : Int
+foxCostOfLiving =
+    1
+
+
 stepFox : Position -> Fox -> Grid -> Grid
 stepFox position fox grid =
     if fox.food > 0 then
@@ -163,11 +163,6 @@ stepFox position fox grid =
     else
         -- Fox starved to death
         setEmpty position grid
-
-
-foxCostOfLiving : Int
-foxCostOfLiving =
-    1
 
 
 foxActions : Position -> Fox -> Grid -> Grid
@@ -187,14 +182,17 @@ eatRabbit { rabbitPos, foxPos } fox grid =
         |> CellGrid.set foxPos (FoxCell { fox | food = fox.food + rabbitNutrition })
 
 
-stepRabbit : Position -> Rabbit -> Grid -> Grid
-stepRabbit position rabbit grid =
-    if rabbit.food > 0 then
-        rabbitActions position { rabbit | food = rabbit.food - rabbitCostOfLiving } grid
 
-    else
-        -- Rabbit starved to death
-        setEmpty position grid
+-- RABBIT
+
+
+type alias Rabbit =
+    { food : Int }
+
+
+initialRabbit : Rabbit
+initialRabbit =
+    { food = 5 }
 
 
 rabbitCostOfLiving : Int
@@ -210,6 +208,16 @@ rabbitNutrition =
 grassNutrition : Int
 grassNutrition =
     3
+
+
+stepRabbit : Position -> Rabbit -> Grid -> Grid
+stepRabbit position rabbit grid =
+    if rabbit.food > 0 then
+        rabbitActions position { rabbit | food = rabbit.food - rabbitCostOfLiving } grid
+
+    else
+        -- Rabbit starved to death
+        setEmpty position grid
 
 
 rabbitActions : Position -> Rabbit -> Grid -> Grid
@@ -230,16 +238,6 @@ eatGrass position rabbit grid =
     CellGrid.set position (RabbitCell postMealRabbit) grid
 
 
-moveToEmptyFrom : Position -> Cell -> Grid -> Grid
-moveToEmptyFrom position cell grid =
-    case nearbyEmpties position grid of
-        [] ->
-            grid
-
-        ( newPos, _ ) :: rest ->
-            move { from = position, to = newPos } cell grid
-
-
 moveToSafetyFrom : Position -> Rabbit -> Grid -> Grid
 moveToSafetyFrom position rabbit grid =
     case nearbySafeEmpties position grid of
@@ -248,6 +246,20 @@ moveToSafetyFrom position rabbit grid =
 
         ( safePos, _ ) :: rest ->
             move { from = position, to = safePos } (RabbitCell rabbit) grid
+
+
+
+-- GENERIC GAME GRID ACTIONS
+
+
+moveToEmptyFrom : Position -> Cell -> Grid -> Grid
+moveToEmptyFrom position cell grid =
+    case nearbyEmpties position grid of
+        [] ->
+            grid
+
+        ( newPos, _ ) :: rest ->
+            move { from = position, to = newPos } cell grid
 
 
 {-| Moving an entity requires two operations on a grid:
