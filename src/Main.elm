@@ -36,6 +36,7 @@ init _ =
 type alias Model =
     { speed : SimSpeed
     , grid : Grid
+    , seed : Random.Seed
     }
 
 
@@ -43,6 +44,7 @@ initialModel : Model
 initialModel =
     { speed = Pause
     , grid = emptyGrid
+    , seed = Random.initialSeed 1
     }
 
 
@@ -105,7 +107,11 @@ update msg model =
             ( { model | grid = newGrid }, Cmd.none )
 
         Tick ->
-            ( { model | grid = step model.grid }, Cmd.none )
+            let
+                ( newGrid, newSeed ) =
+                    step model.seed model.grid
+            in
+            ( { model | grid = newGrid, seed = newSeed }, Cmd.none )
 
         SimSpeedChanged newSpeed ->
             ( { model | speed = newSpeed }, Cmd.none )
@@ -121,22 +127,27 @@ update msg model =
   - Rabbits eat if can't do anything else
 
 -}
-step : Grid -> Grid
-step grid =
-    cellGridFoldlWithPosition stepAnimal grid grid
+step : Random.Seed -> Grid -> ( Grid, Random.Seed )
+step initialSeed initialGrid =
+    cellGridFoldlWithPosition
+        (\position cell ( grid, seed ) ->
+            Random.step (stepAnimal position cell grid) seed
+        )
+        ( initialGrid, initialSeed )
+        initialGrid
 
 
-stepAnimal : Position -> Cell -> Grid -> Grid
+stepAnimal : Position -> Cell -> Grid -> Generator Grid
 stepAnimal position cell grid =
     case cell of
         FoxCell fox ->
             stepFox position fox grid
 
         RabbitCell rabbit ->
-            stepRabbit position rabbit grid
+            Random.constant <| stepRabbit position rabbit grid
 
         Empty ->
-            grid
+            Random.constant grid
 
 
 
@@ -167,29 +178,29 @@ foxBirthCost =
     3
 
 
-stepFox : Position -> Fox -> Grid -> Grid
+stepFox : Position -> Fox -> Grid -> Generator Grid
 stepFox position fox grid =
     if fox.food > 0 then
         foxActions position { fox | food = fox.food - foxCostOfLiving } grid
 
     else
         -- Fox starved to death
-        setEmpty position grid
+        Random.constant <| setEmpty position grid
 
 
-foxActions : Position -> Fox -> Grid -> Grid
+foxActions : Position -> Fox -> Grid -> Generator Grid
 foxActions foxPos fox grid =
     case nearbyRabbits foxPos grid of
         [] ->
-            case foxValidBirthPosition foxPos fox grid of
-                Just babyPos ->
-                    birthFox { babyPos = babyPos, parentPos = foxPos } fox grid
+            case foxValidBirthPositions foxPos fox grid of
+                Just birthPositions ->
+                    birthFoxAtRandomPosition birthPositions foxPos fox grid
 
                 Nothing ->
                     moveToEmptyFrom foxPos (FoxCell fox) grid
 
-        ( rabbitPos, _ ) :: rest ->
-            eatRabbit { rabbitPos = rabbitPos, foxPos = foxPos } fox grid
+        firstRabbit :: otherRabbits ->
+            eatRandomRabbit ( firstRabbit, otherRabbits ) foxPos fox grid
 
 
 birthFox : { babyPos : Position, parentPos : Position } -> Fox -> Grid -> Grid
@@ -206,15 +217,15 @@ eatRabbit { rabbitPos, foxPos } fox grid =
         |> CellGrid.set foxPos (FoxCell { fox | food = fox.food + rabbitNutrition })
 
 
-foxValidBirthPosition : Position -> Fox -> Grid -> Maybe Position
-foxValidBirthPosition position fox grid =
+foxValidBirthPositions : Position -> Fox -> Grid -> Maybe ( ( Position, Cell ), List ( Position, Cell ) )
+foxValidBirthPositions position fox grid =
     if fox.food > foxBirthCost + foxCostOfLiving then
         case nearbyEmpties position grid of
             [] ->
                 Nothing
 
-            ( birthPos, _ ) :: _ ->
-                Just birthPos
+            first :: rest ->
+                Just ( first, rest )
 
     else
         Nothing
@@ -321,14 +332,41 @@ rabbitValidBirthPosition position rabbit grid =
 -- GENERIC GAME GRID ACTIONS
 
 
-moveToEmptyFrom : Position -> Cell -> Grid -> Grid
+moveToEmptyFrom : Position -> Cell -> Grid -> Generator Grid
 moveToEmptyFrom position cell grid =
     case nearbyEmpties position grid of
         [] ->
-            grid
+            Random.constant grid
 
-        ( newPos, _ ) :: rest ->
-            move { from = position, to = newPos } cell grid
+        first :: rest ->
+            moveToRandomPosition first rest position cell grid
+
+
+moveToRandomPosition : ( Position, Cell ) -> List ( Position, Cell ) -> Position -> Cell -> Grid -> Generator Grid
+moveToRandomPosition first rest position cell grid =
+    Random.uniform first rest
+        |> Random.map
+            (\( newPos, _ ) ->
+                move { from = position, to = newPos } cell grid
+            )
+
+
+birthFoxAtRandomPosition : ( ( Position, Cell ), List ( Position, Cell ) ) -> Position -> Fox -> Grid -> Generator Grid
+birthFoxAtRandomPosition ( first, rest ) foxPos fox grid =
+    Random.uniform first rest
+        |> Random.map
+            (\( babyPos, _ ) ->
+                birthFox { babyPos = babyPos, parentPos = foxPos } fox grid
+            )
+
+
+eatRandomRabbit : ( ( Position, Cell ), List ( Position, Cell ) ) -> Position -> Fox -> Grid -> Generator Grid
+eatRandomRabbit ( first, rest ) foxPos fox grid =
+    Random.uniform first rest
+        |> Random.map
+            (\( rabbitPos, _ ) ->
+                eatRabbit { rabbitPos = rabbitPos, foxPos = foxPos } fox grid
+            )
 
 
 {-| Moving an entity requires two operations on a grid:
