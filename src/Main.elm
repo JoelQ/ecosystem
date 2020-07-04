@@ -190,7 +190,7 @@ stepFox position fox grid =
 
 foxActions : Position -> Fox -> Grid -> Generator Grid
 foxActions foxPos fox grid =
-    case nearbyRabbits foxPos grid of
+    case positions (nearbyRabbits foxPos grid) of
         [] ->
             case foxValidBirthPositions foxPos fox grid of
                 Just birthPositions ->
@@ -199,8 +199,8 @@ foxActions foxPos fox grid =
                 Nothing ->
                     moveToEmptyFrom foxPos (FoxCell fox) grid
 
-        firstRabbit :: otherRabbits ->
-            eatRandomRabbit ( firstRabbit, otherRabbits ) foxPos fox grid
+        firstRabbitPos :: otherRabbitsPos ->
+            eatRandomRabbit ( firstRabbitPos, otherRabbitsPos ) foxPos fox grid
 
 
 birthFox : { babyPos : Position, parentPos : Position } -> Fox -> Grid -> Grid
@@ -217,10 +217,10 @@ eatRabbit { rabbitPos, foxPos } fox grid =
         |> CellGrid.set foxPos (FoxCell { fox | food = fox.food + rabbitNutrition })
 
 
-foxValidBirthPositions : Position -> Fox -> Grid -> Maybe ( ( Position, Cell ), List ( Position, Cell ) )
+foxValidBirthPositions : Position -> Fox -> Grid -> Maybe ( Position, List Position )
 foxValidBirthPositions position fox grid =
     if fox.food > foxBirthCost + foxCostOfLiving then
-        case nearbyEmpties position grid of
+        case positions (nearbyEmpties position grid) of
             [] ->
                 Nothing
 
@@ -229,6 +229,11 @@ foxValidBirthPositions position fox grid =
 
     else
         Nothing
+
+
+positions : List ( Position, a ) -> List Position
+positions =
+    List.map Tuple.first
 
 
 
@@ -306,7 +311,7 @@ birthRabbit { babyPos, parentPos } parent grid =
 
 moveToSafetyFrom : Position -> Rabbit -> Grid -> Generator Grid
 moveToSafetyFrom position rabbit grid =
-    case nearbySafeEmpties position grid of
+    case positions (nearbySafeEmpties position grid) of
         [] ->
             Random.constant grid
 
@@ -314,10 +319,10 @@ moveToSafetyFrom position rabbit grid =
             moveToRandomPosition first rest position (RabbitCell rabbit) grid
 
 
-rabbitValidBirthPosition : Position -> Rabbit -> Grid -> Maybe ( ( Position, Cell ), List ( Position, Cell ) )
+rabbitValidBirthPosition : Position -> Rabbit -> Grid -> Maybe ( Position, List Position )
 rabbitValidBirthPosition position rabbit grid =
     if rabbit.food > rabbitBirthCost + rabbitCostOfLiving then
-        case nearbySafeEmpties position grid of
+        case positions (nearbySafeEmpties position grid) of
             [] ->
                 Nothing
 
@@ -334,7 +339,7 @@ rabbitValidBirthPosition position rabbit grid =
 
 moveToEmptyFrom : Position -> Cell -> Grid -> Generator Grid
 moveToEmptyFrom position cell grid =
-    case nearbyEmpties position grid of
+    case positions (nearbyEmpties position grid) of
         [] ->
             Random.constant grid
 
@@ -342,38 +347,38 @@ moveToEmptyFrom position cell grid =
             moveToRandomPosition first rest position cell grid
 
 
-moveToRandomPosition : ( Position, Cell ) -> List ( Position, Cell ) -> Position -> Cell -> Grid -> Generator Grid
+moveToRandomPosition : Position -> List Position -> Position -> Cell -> Grid -> Generator Grid
 moveToRandomPosition first rest position cell grid =
     Random.uniform first rest
         |> Random.map
-            (\( newPos, _ ) ->
+            (\newPos ->
                 move { from = position, to = newPos } cell grid
             )
 
 
-birthFoxAtRandomPosition : ( ( Position, Cell ), List ( Position, Cell ) ) -> Position -> Fox -> Grid -> Generator Grid
+birthFoxAtRandomPosition : ( Position, List Position ) -> Position -> Fox -> Grid -> Generator Grid
 birthFoxAtRandomPosition ( first, rest ) foxPos fox grid =
     Random.uniform first rest
         |> Random.map
-            (\( babyPos, _ ) ->
+            (\babyPos ->
                 birthFox { babyPos = babyPos, parentPos = foxPos } fox grid
             )
 
 
-birthRabbitAtRandomPosition : ( ( Position, Cell ), List ( Position, Cell ) ) -> Position -> Rabbit -> Grid -> Generator Grid
+birthRabbitAtRandomPosition : ( Position, List Position ) -> Position -> Rabbit -> Grid -> Generator Grid
 birthRabbitAtRandomPosition ( first, rest ) rabbitPos rabbit grid =
     Random.uniform first rest
         |> Random.map
-            (\( babyPos, _ ) ->
+            (\babyPos ->
                 birthRabbit { babyPos = babyPos, parentPos = rabbitPos } rabbit grid
             )
 
 
-eatRandomRabbit : ( ( Position, Cell ), List ( Position, Cell ) ) -> Position -> Fox -> Grid -> Generator Grid
+eatRandomRabbit : ( Position, List Position ) -> Position -> Fox -> Grid -> Generator Grid
 eatRandomRabbit ( first, rest ) foxPos fox grid =
     Random.uniform first rest
         |> Random.map
-            (\( rabbitPos, _ ) ->
+            (\rabbitPos ->
                 eatRabbit { rabbitPos = rabbitPos, foxPos = foxPos } fox grid
             )
 
