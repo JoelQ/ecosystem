@@ -26,7 +26,7 @@ type alias Flags =
 
 init : Flags -> ( Model, Cmd Msg )
 init _ =
-    ( initialModel, Random.generate GridGenerated gridGenerator )
+    ( initialModel, generateNewModel )
 
 
 
@@ -46,6 +46,18 @@ initialModel =
     , grid = emptyGrid
     , seed = Random.initialSeed 1
     }
+
+
+generateNewModel : Cmd Msg
+generateNewModel =
+    Random.generate ModelGenerated modelGenerator
+
+
+modelGenerator : Generator Model
+modelGenerator =
+    Random.map2 (\grid seed -> Model Pause grid seed)
+        gridGenerator
+        Random.independentSeed
 
 
 type SimSpeed
@@ -95,16 +107,17 @@ cellGenerator =
 
 
 type Msg
-    = GridGenerated Grid
+    = ModelGenerated Model
     | Tick
     | SimSpeedChanged SimSpeed
+    | ResetClicked
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        GridGenerated newGrid ->
-            ( { model | grid = newGrid }, Cmd.none )
+        ModelGenerated newModel ->
+            ( newModel, Cmd.none )
 
         Tick ->
             let
@@ -115,6 +128,9 @@ update msg model =
 
         SimSpeedChanged newSpeed ->
             ( { model | speed = newSpeed }, Cmd.none )
+
+        ResetClicked ->
+            ( model, generateNewModel )
 
 
 {-| Rules:
@@ -512,6 +528,7 @@ controls : SimSpeed -> Html Msg
 controls currentSpeed =
     Html.section [ Html.Attributes.class "controls" ]
         [ speedControls currentSpeed
+        , resetControl
         ]
 
 
@@ -540,6 +557,14 @@ speedLabel speed =
 
         Pause ->
             "Pause"
+
+
+resetControl : Html Msg
+resetControl =
+    Html.fieldset []
+        [ Html.legend [] [ Html.text "Reset" ]
+        , Html.button [ Html.Events.onClick ResetClicked ] [ Html.text "Reset" ]
+        ]
 
 
 gameBoard : Grid -> Html a
