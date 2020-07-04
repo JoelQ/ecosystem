@@ -144,7 +144,7 @@ stepAnimal position cell grid =
             stepFox position fox grid
 
         RabbitCell rabbit ->
-            Random.constant <| stepRabbit position rabbit grid
+            stepRabbit position rabbit grid
 
         Empty ->
             Random.constant grid
@@ -264,28 +264,28 @@ rabbitBirthCost =
     2
 
 
-stepRabbit : Position -> Rabbit -> Grid -> Grid
+stepRabbit : Position -> Rabbit -> Grid -> Generator Grid
 stepRabbit position rabbit grid =
     if rabbit.food > 0 then
         rabbitActions position { rabbit | food = rabbit.food - rabbitCostOfLiving } grid
 
     else
         -- Rabbit starved to death
-        setEmpty position grid
+        Random.constant <| setEmpty position grid
 
 
-rabbitActions : Position -> Rabbit -> Grid -> Grid
-rabbitActions position rabbit grid =
-    if isSafe position grid then
-        case rabbitValidBirthPosition position rabbit grid of
-            Just babyPos ->
-                birthRabbit { babyPos = babyPos, parentPos = position } rabbit grid
+rabbitActions : Position -> Rabbit -> Grid -> Generator Grid
+rabbitActions rabbitPos rabbit grid =
+    if isSafe rabbitPos grid then
+        case rabbitValidBirthPosition rabbitPos rabbit grid of
+            Just birthPositions ->
+                birthRabbitAtRandomPosition birthPositions rabbitPos rabbit grid
 
             Nothing ->
-                eatGrass position rabbit grid
+                Random.constant <| eatGrass rabbitPos rabbit grid
 
     else
-        moveToSafetyFrom position rabbit grid
+        moveToSafetyFrom rabbitPos rabbit grid
 
 
 eatGrass : Position -> Rabbit -> Grid -> Grid
@@ -304,25 +304,25 @@ birthRabbit { babyPos, parentPos } parent grid =
         |> CellGrid.set babyPos (RabbitCell { food = rabbitBirthCost })
 
 
-moveToSafetyFrom : Position -> Rabbit -> Grid -> Grid
+moveToSafetyFrom : Position -> Rabbit -> Grid -> Generator Grid
 moveToSafetyFrom position rabbit grid =
     case nearbySafeEmpties position grid of
         [] ->
-            grid
+            Random.constant grid
 
-        ( safePos, _ ) :: rest ->
-            move { from = position, to = safePos } (RabbitCell rabbit) grid
+        first :: rest ->
+            moveToRandomPosition first rest position (RabbitCell rabbit) grid
 
 
-rabbitValidBirthPosition : Position -> Rabbit -> Grid -> Maybe Position
+rabbitValidBirthPosition : Position -> Rabbit -> Grid -> Maybe ( ( Position, Cell ), List ( Position, Cell ) )
 rabbitValidBirthPosition position rabbit grid =
     if rabbit.food > rabbitBirthCost + rabbitCostOfLiving then
         case nearbySafeEmpties position grid of
             [] ->
                 Nothing
 
-            ( birthPos, _ ) :: _ ->
-                Just birthPos
+            first :: rest ->
+                Just ( first, rest )
 
     else
         Nothing
@@ -357,6 +357,15 @@ birthFoxAtRandomPosition ( first, rest ) foxPos fox grid =
         |> Random.map
             (\( babyPos, _ ) ->
                 birthFox { babyPos = babyPos, parentPos = foxPos } fox grid
+            )
+
+
+birthRabbitAtRandomPosition : ( ( Position, Cell ), List ( Position, Cell ) ) -> Position -> Rabbit -> Grid -> Generator Grid
+birthRabbitAtRandomPosition ( first, rest ) rabbitPos rabbit grid =
+    Random.uniform first rest
+        |> Random.map
+            (\( babyPos, _ ) ->
+                birthRabbit { babyPos = babyPos, parentPos = rabbitPos } rabbit grid
             )
 
 
