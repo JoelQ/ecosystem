@@ -187,37 +187,94 @@ stepAnimal position cell grid =
 
 
 
+-- ENERGY
+
+
+type Energy
+    = Energy Int
+
+
+hasEnergy : { a | energy : Energy } -> Bool
+hasEnergy animal =
+    let
+        (Energy energy) =
+            animal.energy
+    in
+    energy > 0
+
+
+consumeEnergy : Energy -> { a | energy : Energy } -> { a | energy : Energy }
+consumeEnergy (Energy cost) animal =
+    let
+        (Energy animalEnergy) =
+            animal.energy
+    in
+    { animal | energy = Energy (animalEnergy - cost) }
+
+
+gainEnergy : Energy -> { a | energy : Energy } -> { a | energy : Energy }
+gainEnergy (Energy newEnergy) animal =
+    let
+        (Energy animalEnergy) =
+            animal.energy
+    in
+    { animal | energy = Energy (animalEnergy + newEnergy) }
+
+
+canSupportCosts : List Energy -> { a | energy : Energy } -> Bool
+canSupportCosts costs animal =
+    let
+        (Energy totalCost) =
+            sumEnergies costs
+
+        (Energy animalEnergy) =
+            animal.energy
+    in
+    animalEnergy > totalCost
+
+
+addEnergy : Energy -> Energy -> Energy
+addEnergy (Energy e1) (Energy e2) =
+    Energy (e1 + e2)
+
+
+sumEnergies : List Energy -> Energy
+sumEnergies energies =
+    List.foldl addEnergy (Energy 0) energies
+
+
+
 -- FOX
 
 
 type alias Fox =
-    { food : Int }
+    { energy : Energy }
 
 
 initialFox : Fox
 initialFox =
-    { food = 5 }
+    { energy = Energy 5 }
 
 
 babyFox : Fox
 babyFox =
-    { food = foxBirthCost }
+    { energy = foxBirthCost }
 
 
-foxCostOfLiving : Int
+foxCostOfLiving : Energy
 foxCostOfLiving =
-    1
+    Energy 1
 
 
-foxBirthCost : Int
+foxBirthCost : Energy
 foxBirthCost =
-    3
+    Energy 3
 
 
 stepFox : Position -> Fox -> Grid -> Generator Grid
 stepFox position fox grid =
-    if fox.food > 0 then
-        foxActions position { fox | food = fox.food - foxCostOfLiving } grid
+    if hasEnergy fox then
+        foxActions position (consumeEnergy foxCostOfLiving fox) grid
 
     else
         -- Fox starved to death
@@ -242,20 +299,20 @@ foxActions foxPos fox grid =
 birthFox : { babyPos : Position, parentPos : Position } -> Fox -> Grid -> Grid
 birthFox { babyPos, parentPos } parent grid =
     grid
-        |> CellGrid.set parentPos (FoxCell { parent | food = parent.food - foxBirthCost })
-        |> CellGrid.set babyPos (FoxCell { food = foxBirthCost })
+        |> CellGrid.set parentPos (FoxCell (consumeEnergy foxBirthCost parent))
+        |> CellGrid.set babyPos (FoxCell { energy = foxBirthCost })
 
 
 eatRabbit : { rabbitPos : Position, foxPos : Position } -> Fox -> Grid -> Grid
 eatRabbit { rabbitPos, foxPos } fox grid =
     grid
         |> setEmpty rabbitPos
-        |> CellGrid.set foxPos (FoxCell { fox | food = fox.food + rabbitNutrition })
+        |> CellGrid.set foxPos (FoxCell (gainEnergy rabbitNutrition fox))
 
 
 foxValidBirthPositions : Position -> Fox -> Grid -> Maybe ( Position, List Position )
 foxValidBirthPositions position fox grid =
-    if fox.food > foxBirthCost + foxCostOfLiving then
+    if canSupportCosts [ foxBirthCost, foxCostOfLiving ] fox then
         case positions (nearbyEmpties position grid) of
             [] ->
                 Nothing
@@ -277,38 +334,38 @@ positions =
 
 
 type alias Rabbit =
-    { food : Int }
+    { energy : Energy }
 
 
 initialRabbit : Rabbit
 initialRabbit =
-    { food = 5 }
+    { energy = Energy 5 }
 
 
-rabbitCostOfLiving : Int
+rabbitCostOfLiving : Energy
 rabbitCostOfLiving =
-    1
+    Energy 1
 
 
-rabbitNutrition : Int
+rabbitNutrition : Energy
 rabbitNutrition =
-    5
+    Energy 5
 
 
-grassNutrition : Int
+grassNutrition : Energy
 grassNutrition =
-    3
+    Energy 3
 
 
-rabbitBirthCost : Int
+rabbitBirthCost : Energy
 rabbitBirthCost =
-    2
+    Energy 2
 
 
 stepRabbit : Position -> Rabbit -> Grid -> Generator Grid
 stepRabbit position rabbit grid =
-    if rabbit.food > 0 then
-        rabbitActions position { rabbit | food = rabbit.food - rabbitCostOfLiving } grid
+    if hasEnergy rabbit then
+        rabbitActions position (consumeEnergy rabbitCostOfLiving rabbit) grid
 
     else
         -- Rabbit starved to death
@@ -333,7 +390,7 @@ eatGrass : Position -> Rabbit -> Grid -> Grid
 eatGrass position rabbit grid =
     let
         postMealRabbit =
-            { rabbit | food = rabbit.food + grassNutrition }
+            gainEnergy grassNutrition rabbit
     in
     CellGrid.set position (RabbitCell postMealRabbit) grid
 
@@ -341,8 +398,8 @@ eatGrass position rabbit grid =
 birthRabbit : { babyPos : Position, parentPos : Position } -> Rabbit -> Grid -> Grid
 birthRabbit { babyPos, parentPos } parent grid =
     grid
-        |> CellGrid.set parentPos (RabbitCell { parent | food = parent.food - rabbitBirthCost })
-        |> CellGrid.set babyPos (RabbitCell { food = rabbitBirthCost })
+        |> CellGrid.set parentPos (RabbitCell (consumeEnergy rabbitBirthCost parent))
+        |> CellGrid.set babyPos (RabbitCell { energy = rabbitBirthCost })
 
 
 moveToSafetyFrom : Position -> Rabbit -> Grid -> Generator Grid
@@ -357,7 +414,7 @@ moveToSafetyFrom position rabbit grid =
 
 rabbitValidBirthPosition : Position -> Rabbit -> Grid -> Maybe ( Position, List Position )
 rabbitValidBirthPosition position rabbit grid =
-    if rabbit.food > rabbitBirthCost + rabbitCostOfLiving then
+    if canSupportCosts [ rabbitBirthCost, rabbitCostOfLiving ] rabbit then
         case positions (nearbySafeEmpties position grid) of
             [] ->
                 Nothing
@@ -668,26 +725,26 @@ cellSymbol : Cell -> Html a
 cellSymbol cell =
     case cell of
         FoxCell fox ->
-            hungerAwareValue fox.food (Html.text "\u{1F98A}")
+            hungerAwareValue fox.energy (Html.text "\u{1F98A}")
 
         RabbitCell rabbit ->
-            hungerAwareValue rabbit.food (Html.text "🐰")
+            hungerAwareValue rabbit.energy (Html.text "🐰")
 
         Empty ->
             Html.text ""
 
 
-hungerAwareValue : Int -> Html a -> Html a
-hungerAwareValue food content =
-    Html.span [ Html.Attributes.class <| hungerClass food ] [ content ]
+hungerAwareValue : Energy -> Html a -> Html a
+hungerAwareValue energy content =
+    Html.span [ Html.Attributes.class <| hungerClass energy ] [ content ]
 
 
-hungerClass : Int -> String
-hungerClass food =
-    if food > 3 then
+hungerClass : Energy -> String
+hungerClass (Energy energy) =
+    if energy > 3 then
         "full"
 
-    else if food > 1 then
+    else if energy > 1 then
         "hungry"
 
     else
