@@ -26,7 +26,7 @@ type alias Flags =
 
 init : Flags -> ( Model, Cmd Msg )
 init _ =
-    ( initialModel, generateNewModel )
+    ( initialModel, generateNewGameState )
 
 
 
@@ -34,6 +34,16 @@ init _ =
 
 
 type alias Model =
+    Game
+
+
+type Game
+    = Loading
+    | Playing GameState
+    | Lost GameState
+
+
+type alias GameState =
     { speed : SimSpeed
     , grid : Grid
     , seed : Random.Seed
@@ -42,20 +52,17 @@ type alias Model =
 
 initialModel : Model
 initialModel =
-    { speed = Pause
-    , grid = emptyGrid
-    , seed = Random.initialSeed 1
-    }
+    Loading
 
 
-generateNewModel : Cmd Msg
-generateNewModel =
-    Random.generate ModelGenerated modelGenerator
+generateNewGameState : Cmd Msg
+generateNewGameState =
+    Random.generate GameStateGenerated gameStateGenerator
 
 
-modelGenerator : Generator Model
-modelGenerator =
-    Random.map2 (\grid seed -> Model Pause grid seed)
+gameStateGenerator : Generator GameState
+gameStateGenerator =
+    Random.map2 (\grid seed -> GameState Pause grid seed)
         gridGenerator
         Random.independentSeed
 
@@ -107,7 +114,7 @@ cellGenerator =
 
 
 type Msg
-    = ModelGenerated Model
+    = GameStateGenerated GameState
     | Tick
     | SimSpeedChanged SimSpeed
     | ResetClicked
@@ -115,22 +122,35 @@ type Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case msg of
-        ModelGenerated newModel ->
-            ( newModel, Cmd.none )
+    case ( model, msg ) of
+        ( _, GameStateGenerated newState ) ->
+            ( Playing newState, Cmd.none )
 
-        Tick ->
+        ( Playing state, Tick ) ->
             let
                 ( newGrid, newSeed ) =
-                    step model.seed model.grid
+                    step state.seed state.grid
+
+                newState =
+                    { state | grid = newGrid, seed = newSeed }
+
+                { rabbits, foxes } =
+                    populations newGrid
             in
-            ( { model | grid = newGrid, seed = newSeed }, Cmd.none )
+            if foxes > 0 && rabbits > 0 then
+                ( Playing newState, Cmd.none )
 
-        SimSpeedChanged newSpeed ->
-            ( { model | speed = newSpeed }, Cmd.none )
+            else
+                ( Lost newState, Cmd.none )
 
-        ResetClicked ->
-            ( model, generateNewModel )
+        ( Playing state, SimSpeedChanged newSpeed ) ->
+            ( Playing { state | speed = newSpeed }, Cmd.none )
+
+        ( _, ResetClicked ) ->
+            ( model, generateNewGameState )
+
+        ( _, _ ) ->
+            ( model, Cmd.none )
 
 
 {-| Rules:
@@ -459,6 +479,23 @@ isSafe position grid =
         |> List.isEmpty
 
 
+populations : Grid -> { rabbits : Int, foxes : Int }
+populations grid =
+    CellGrid.foldl
+        (\cell count ->
+            if isRabbit cell then
+                { count | rabbits = count.rabbits + 1 }
+
+            else if isFox cell then
+                { count | foxes = count.foxes + 1 }
+
+            else
+                count
+        )
+        { rabbits = 0, foxes = 0 }
+        grid
+
+
 isRabbit : Cell -> Bool
 isRabbit cell =
     case cell of
@@ -495,14 +532,19 @@ isEmpty cell =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    case model.speed of
-        Play ->
-            Time.every 1000 (\_ -> Tick)
+    case model of
+        Playing state ->
+            case state.speed of
+                Play ->
+                    Time.every 1000 (\_ -> Tick)
 
-        DoubleSpeed ->
-            Time.every 500 (\_ -> Tick)
+                DoubleSpeed ->
+                    Time.every 500 (\_ -> Tick)
 
-        Pause ->
+                Pause ->
+                    Sub.none
+
+        _ ->
             Sub.none
 
 
@@ -512,16 +554,54 @@ subscriptions model =
 
 view : Model -> Html Msg
 view model =
+    case model of
+        Loading ->
+            loadingView
+
+        Playing state ->
+            playingView state
+
+        Lost state ->
+            lostView state
+
+
+loadingView : Html Msg
+loadingView =
     Html.main_ []
         [ header
-        , gameBoard model.grid
-        , controls model.speed
+        , Html.div [] [ Html.text "Loading" ]
+        ]
+
+
+playingView : GameState -> Html Msg
+playingView state =
+    Html.main_ []
+        [ header
+        , gameBoard state.grid
+        , controls state.speed
+        ]
+
+
+lostView : GameState -> Html Msg
+lostView state =
+    Html.main_ []
+        [ header
+        , gameBoard state.grid
+        , lostControls
         ]
 
 
 header : Html a
 header =
     Html.h1 [] [ Html.text "Ecosystem" ]
+
+
+lostControls : Html Msg
+lostControls =
+    Html.section [ Html.Attributes.class "controls" ]
+        [ Html.h2 [] [ Html.text "Ecosystem collapsed!" ]
+        , resetControl
+        ]
 
 
 controls : SimSpeed -> Html Msg
