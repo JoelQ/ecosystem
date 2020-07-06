@@ -729,6 +729,7 @@ controls state =
         [ speedControls state
         , foxConfigControls state.foxConfig
         , rabbitConfigControls state.rabbitConfig
+        , rules
         ]
 
 
@@ -864,6 +865,23 @@ fromMaybe maybe =
 
         Nothing ->
             Decode.fail "was Nothing"
+
+
+rules : Html a
+rules =
+    Html.fieldset []
+        [ Html.legend [] [ Html.text "Rules" ]
+        , Html.ul
+            []
+            [ Html.li [] [ Html.text "Animals consume their metabolism cost." ]
+            , Html.li [] [ Html.text "Animals with zero energy die." ]
+            , Html.li [] [ Html.text "Animals may give birth at the 'birth cost' if they have enough energy. This energy is transferred to the offspring." ]
+            , Html.li [] [ Html.text "Foxes may consume a neighboring rabbit, gaining the 'rabbit nutrition' energy." ]
+            , Html.li [] [ Html.text "Foxes will randomly move if they have nothing else to do." ]
+            , Html.li [] [ Html.text "Rabbits will randomly move if they are adjancent to a fox" ]
+            , Html.li [] [ Html.text "Rabbits will consume grass, gaining the 'grass nutrition' energy, if they have nothing else to do." ]
+            ]
+        ]
 
 
 gameBoard : Grid -> Html a
