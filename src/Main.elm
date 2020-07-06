@@ -5,6 +5,7 @@ import CellGrid exposing (CellGrid, Position)
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
+import Json.Decode as Decode exposing (Decoder)
 import List.Extra
 import Random exposing (Generator)
 import Time
@@ -120,6 +121,7 @@ type Msg
     | Tick
     | SimSpeedChanged SimSpeed
     | ResetClicked
+    | FoxConfigChanged FoxConfigField Energy
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -147,6 +149,13 @@ update msg model =
 
         ( Playing state, SimSpeedChanged newSpeed ) ->
             ( Playing { state | speed = newSpeed }, Cmd.none )
+
+        ( Playing ({ foxConfig } as state), FoxConfigChanged field newCost ) ->
+            let
+                newFoxConfig =
+                    setFoxConfigField field newCost state.foxConfig
+            in
+            ( Playing { state | foxConfig = newFoxConfig }, Cmd.none )
 
         ( _, ResetClicked ) ->
             ( model, generateNewGameState )
@@ -194,6 +203,11 @@ stepAnimal { foxConfig, rabbitConfig } position cell grid =
 
 type Energy
     = Energy Int
+
+
+energyToInt : Energy -> Int
+energyToInt (Energy e) =
+    e
 
 
 hasEnergy : { a | energy : Energy } -> Bool
@@ -264,6 +278,29 @@ initialFoxConfig =
     , birthCost = Energy 3
     , rabbitNutrition = Energy 5
     }
+
+
+type FoxConfigField
+    = InitialEnergy
+    | CostOfLiving
+    | BirthCost
+    | RabbitNutrition
+
+
+setFoxConfigField : FoxConfigField -> Energy -> FoxConfig -> FoxConfig
+setFoxConfigField field energy config =
+    case field of
+        InitialEnergy ->
+            { config | initialEnergy = energy }
+
+        CostOfLiving ->
+            { config | costOfLiving = energy }
+
+        BirthCost ->
+            { config | birthCost = energy }
+
+        RabbitNutrition ->
+            { config | rabbitNutrition = energy }
 
 
 type alias Fox =
@@ -636,7 +673,7 @@ playingView state =
     Html.main_ []
         [ header
         , gameBoard state.grid
-        , controls state.speed
+        , controls state
         ]
 
 
@@ -662,11 +699,12 @@ lostControls =
         ]
 
 
-controls : SimSpeed -> Html Msg
-controls currentSpeed =
+controls : GameState -> Html Msg
+controls state =
     Html.section [ Html.Attributes.class "controls" ]
-        [ speedControls currentSpeed
+        [ speedControls state.speed
         , resetControl
+        , foxConfigControls state.foxConfig
         ]
 
 
@@ -703,6 +741,67 @@ resetControl =
         [ Html.legend [] [ Html.text "Reset" ]
         , Html.button [ Html.Events.onClick ResetClicked ] [ Html.text "Reset" ]
         ]
+
+
+foxConfigControls : FoxConfig -> Html Msg
+foxConfigControls config =
+    Html.fieldset []
+        [ Html.legend [] [ Html.text "Fox Config" ]
+        , range
+            { label = "Metabolism"
+            , value = energyToInt config.costOfLiving
+            , tagger = FoxConfigChanged CostOfLiving << Energy
+            }
+        , range
+            { label = "Birth Cost"
+            , value = energyToInt config.birthCost
+            , tagger = FoxConfigChanged BirthCost << Energy
+            }
+        , range
+            { label = "Rabbit Nutrition"
+            , value = energyToInt config.rabbitNutrition
+            , tagger = FoxConfigChanged RabbitNutrition << Energy
+            }
+        ]
+
+
+range : { label : String, value : Int, tagger : Int -> msg } -> Html msg
+range config =
+    Html.div []
+        [ Html.label []
+            [ Html.span [] [ Html.text <| String.fromInt config.value ]
+            , Html.input
+                [ Html.Attributes.type_ "range"
+                , Html.Attributes.min "1"
+                , Html.Attributes.max "5"
+                , Html.Attributes.value <| String.fromInt config.value
+                , onIntInput config.tagger
+                ]
+                []
+            , Html.text config.label
+            ]
+        ]
+
+
+onIntInput : (Int -> msg) -> Html.Attribute msg
+onIntInput tagger =
+    Html.Events.on "input" (Decode.map tagger targetInt)
+
+
+targetInt : Decoder Int
+targetInt =
+    Html.Events.targetValue
+        |> Decode.andThen (fromMaybe << String.toInt)
+
+
+fromMaybe : Maybe a -> Decoder a
+fromMaybe maybe =
+    case maybe of
+        Just value ->
+            Decode.succeed value
+
+        Nothing ->
+            Decode.fail "was Nothing"
 
 
 gameBoard : Grid -> Html a
