@@ -47,6 +47,8 @@ type alias GameState =
     { speed : SimSpeed
     , grid : Grid
     , seed : Random.Seed
+    , foxConfig : FoxConfig
+    , rabbitConfig : RabbitConfig
     }
 
 
@@ -62,7 +64,7 @@ generateNewGameState =
 
 gameStateGenerator : Generator GameState
 gameStateGenerator =
-    Random.map2 (\grid seed -> GameState Pause grid seed)
+    Random.map2 (\grid seed -> GameState Pause grid seed initialFoxConfig initialRabbitConfig)
         gridGenerator
         Random.independentSeed
 
@@ -129,7 +131,7 @@ update msg model =
         ( Playing state, Tick ) ->
             let
                 ( newGrid, newSeed ) =
-                    step state.seed state.grid
+                    step state
 
                 newState =
                     { state | grid = newGrid, seed = newSeed }
@@ -163,24 +165,24 @@ update msg model =
   - Rabbits eat if can't do anything else
 
 -}
-step : Random.Seed -> Grid -> ( Grid, Random.Seed )
-step initialSeed initialGrid =
+step : GameState -> ( Grid, Random.Seed )
+step state =
     cellGridFoldlWithPosition
-        (\position cell ( grid, seed ) ->
-            Random.step (stepAnimal position cell grid) seed
+        (\position cell ( newGrid, newSeed ) ->
+            Random.step (stepAnimal state position cell newGrid) newSeed
         )
-        ( initialGrid, initialSeed )
-        initialGrid
+        ( state.grid, state.seed )
+        state.grid
 
 
-stepAnimal : Position -> Cell -> Grid -> Generator Grid
-stepAnimal position cell grid =
+stepAnimal : GameState -> Position -> Cell -> Grid -> Generator Grid
+stepAnimal { foxConfig, rabbitConfig } position cell grid =
     case cell of
         FoxCell fox ->
-            stepFox position fox grid
+            stepFox foxConfig position fox grid
 
         RabbitCell rabbit ->
-            stepRabbit position rabbit grid
+            stepRabbit rabbitConfig position rabbit grid
 
         Empty ->
             Random.constant grid
@@ -247,6 +249,23 @@ sumEnergies energies =
 -- FOX
 
 
+type alias FoxConfig =
+    { initialEnergy : Energy
+    , costOfLiving : Energy
+    , birthCost : Energy
+    , rabbitNutrition : Energy
+    }
+
+
+initialFoxConfig : FoxConfig
+initialFoxConfig =
+    { initialEnergy = Energy 5
+    , costOfLiving = Energy 1
+    , birthCost = Energy 3
+    , rabbitNutrition = Energy 5
+    }
+
+
 type alias Fox =
     { energy : Energy }
 
@@ -256,63 +275,48 @@ initialFox =
     { energy = Energy 5 }
 
 
-babyFox : Fox
-babyFox =
-    { energy = foxBirthCost }
-
-
-foxCostOfLiving : Energy
-foxCostOfLiving =
-    Energy 1
-
-
-foxBirthCost : Energy
-foxBirthCost =
-    Energy 3
-
-
-stepFox : Position -> Fox -> Grid -> Generator Grid
-stepFox position fox grid =
+stepFox : FoxConfig -> Position -> Fox -> Grid -> Generator Grid
+stepFox ({ costOfLiving } as foxConfig) position fox grid =
     if hasEnergy fox then
-        foxActions position (consumeEnergy foxCostOfLiving fox) grid
+        foxActions foxConfig position (consumeEnergy costOfLiving fox) grid
 
     else
         -- Fox starved to death
         Random.constant <| setEmpty position grid
 
 
-foxActions : Position -> Fox -> Grid -> Generator Grid
-foxActions foxPos fox grid =
+foxActions : FoxConfig -> Position -> Fox -> Grid -> Generator Grid
+foxActions foxConfig foxPos fox grid =
     case positions (nearbyRabbits foxPos grid) of
         [] ->
-            case foxValidBirthPositions foxPos fox grid of
+            case foxValidBirthPositions foxConfig foxPos fox grid of
                 Just birthPositions ->
-                    birthFoxAtRandomPosition birthPositions foxPos fox grid
+                    birthFoxAtRandomPosition birthPositions foxConfig foxPos fox grid
 
                 Nothing ->
                     moveToEmptyFrom foxPos (FoxCell fox) grid
 
         firstRabbitPos :: otherRabbitsPos ->
-            eatRandomRabbit ( firstRabbitPos, otherRabbitsPos ) foxPos fox grid
+            eatRandomRabbit ( firstRabbitPos, otherRabbitsPos ) foxConfig foxPos fox grid
 
 
-birthFox : { babyPos : Position, parentPos : Position } -> Fox -> Grid -> Grid
-birthFox { babyPos, parentPos } parent grid =
+birthFox : FoxConfig -> { babyPos : Position, parentPos : Position } -> Fox -> Grid -> Grid
+birthFox { birthCost } { babyPos, parentPos } parent grid =
     grid
-        |> CellGrid.set parentPos (FoxCell (consumeEnergy foxBirthCost parent))
-        |> CellGrid.set babyPos (FoxCell { energy = foxBirthCost })
+        |> CellGrid.set parentPos (FoxCell (consumeEnergy birthCost parent))
+        |> CellGrid.set babyPos (FoxCell { energy = birthCost })
 
 
-eatRabbit : { rabbitPos : Position, foxPos : Position } -> Fox -> Grid -> Grid
-eatRabbit { rabbitPos, foxPos } fox grid =
+eatRabbit : FoxConfig -> { rabbitPos : Position, foxPos : Position } -> Fox -> Grid -> Grid
+eatRabbit { rabbitNutrition } { rabbitPos, foxPos } fox grid =
     grid
         |> setEmpty rabbitPos
         |> CellGrid.set foxPos (FoxCell (gainEnergy rabbitNutrition fox))
 
 
-foxValidBirthPositions : Position -> Fox -> Grid -> Maybe ( Position, List Position )
-foxValidBirthPositions position fox grid =
-    if canSupportCosts [ foxBirthCost, foxCostOfLiving ] fox then
+foxValidBirthPositions : FoxConfig -> Position -> Fox -> Grid -> Maybe ( Position, List Position )
+foxValidBirthPositions { birthCost, costOfLiving } position fox grid =
+    if canSupportCosts [ birthCost, costOfLiving ] fox then
         case positions (nearbyEmpties position grid) of
             [] ->
                 Nothing
@@ -342,52 +346,49 @@ initialRabbit =
     { energy = Energy 5 }
 
 
-rabbitCostOfLiving : Energy
-rabbitCostOfLiving =
-    Energy 1
+type alias RabbitConfig =
+    { costOfLiving : Energy
+    , grassNutrition : Energy
+    , birthCost : Energy
+    , initialEnergy : Energy
+    }
 
 
-rabbitNutrition : Energy
-rabbitNutrition =
-    Energy 5
+initialRabbitConfig : RabbitConfig
+initialRabbitConfig =
+    { initialEnergy = Energy 5
+    , costOfLiving = Energy 1
+    , grassNutrition = Energy 3
+    , birthCost = Energy 2
+    }
 
 
-grassNutrition : Energy
-grassNutrition =
-    Energy 3
-
-
-rabbitBirthCost : Energy
-rabbitBirthCost =
-    Energy 2
-
-
-stepRabbit : Position -> Rabbit -> Grid -> Generator Grid
-stepRabbit position rabbit grid =
+stepRabbit : RabbitConfig -> Position -> Rabbit -> Grid -> Generator Grid
+stepRabbit ({ costOfLiving } as rabbitConfig) position rabbit grid =
     if hasEnergy rabbit then
-        rabbitActions position (consumeEnergy rabbitCostOfLiving rabbit) grid
+        rabbitActions rabbitConfig position (consumeEnergy costOfLiving rabbit) grid
 
     else
         -- Rabbit starved to death
         Random.constant <| setEmpty position grid
 
 
-rabbitActions : Position -> Rabbit -> Grid -> Generator Grid
-rabbitActions rabbitPos rabbit grid =
+rabbitActions : RabbitConfig -> Position -> Rabbit -> Grid -> Generator Grid
+rabbitActions rabbitConfig rabbitPos rabbit grid =
     if isSafe rabbitPos grid then
-        case rabbitValidBirthPosition rabbitPos rabbit grid of
+        case rabbitValidBirthPosition rabbitConfig rabbitPos rabbit grid of
             Just birthPositions ->
-                birthRabbitAtRandomPosition birthPositions rabbitPos rabbit grid
+                birthRabbitAtRandomPosition birthPositions rabbitConfig rabbitPos rabbit grid
 
             Nothing ->
-                Random.constant <| eatGrass rabbitPos rabbit grid
+                Random.constant <| eatGrass rabbitConfig rabbitPos rabbit grid
 
     else
         moveToSafetyFrom rabbitPos rabbit grid
 
 
-eatGrass : Position -> Rabbit -> Grid -> Grid
-eatGrass position rabbit grid =
+eatGrass : RabbitConfig -> Position -> Rabbit -> Grid -> Grid
+eatGrass { grassNutrition } position rabbit grid =
     let
         postMealRabbit =
             gainEnergy grassNutrition rabbit
@@ -395,11 +396,11 @@ eatGrass position rabbit grid =
     CellGrid.set position (RabbitCell postMealRabbit) grid
 
 
-birthRabbit : { babyPos : Position, parentPos : Position } -> Rabbit -> Grid -> Grid
-birthRabbit { babyPos, parentPos } parent grid =
+birthRabbit : RabbitConfig -> { babyPos : Position, parentPos : Position } -> Rabbit -> Grid -> Grid
+birthRabbit { birthCost } { babyPos, parentPos } parent grid =
     grid
-        |> CellGrid.set parentPos (RabbitCell (consumeEnergy rabbitBirthCost parent))
-        |> CellGrid.set babyPos (RabbitCell { energy = rabbitBirthCost })
+        |> CellGrid.set parentPos (RabbitCell (consumeEnergy birthCost parent))
+        |> CellGrid.set babyPos (RabbitCell { energy = birthCost })
 
 
 moveToSafetyFrom : Position -> Rabbit -> Grid -> Generator Grid
@@ -412,9 +413,9 @@ moveToSafetyFrom position rabbit grid =
             moveToRandomPosition first rest position (RabbitCell rabbit) grid
 
 
-rabbitValidBirthPosition : Position -> Rabbit -> Grid -> Maybe ( Position, List Position )
-rabbitValidBirthPosition position rabbit grid =
-    if canSupportCosts [ rabbitBirthCost, rabbitCostOfLiving ] rabbit then
+rabbitValidBirthPosition : RabbitConfig -> Position -> Rabbit -> Grid -> Maybe ( Position, List Position )
+rabbitValidBirthPosition { birthCost, costOfLiving } position rabbit grid =
+    if canSupportCosts [ birthCost, costOfLiving ] rabbit then
         case positions (nearbySafeEmpties position grid) of
             [] ->
                 Nothing
@@ -449,30 +450,30 @@ moveToRandomPosition first rest position cell grid =
             )
 
 
-birthFoxAtRandomPosition : ( Position, List Position ) -> Position -> Fox -> Grid -> Generator Grid
-birthFoxAtRandomPosition ( first, rest ) foxPos fox grid =
+birthFoxAtRandomPosition : ( Position, List Position ) -> FoxConfig -> Position -> Fox -> Grid -> Generator Grid
+birthFoxAtRandomPosition ( first, rest ) foxConfig foxPos fox grid =
     Random.uniform first rest
         |> Random.map
             (\babyPos ->
-                birthFox { babyPos = babyPos, parentPos = foxPos } fox grid
+                birthFox foxConfig { babyPos = babyPos, parentPos = foxPos } fox grid
             )
 
 
-birthRabbitAtRandomPosition : ( Position, List Position ) -> Position -> Rabbit -> Grid -> Generator Grid
-birthRabbitAtRandomPosition ( first, rest ) rabbitPos rabbit grid =
+birthRabbitAtRandomPosition : ( Position, List Position ) -> RabbitConfig -> Position -> Rabbit -> Grid -> Generator Grid
+birthRabbitAtRandomPosition ( first, rest ) rabbitConfig rabbitPos rabbit grid =
     Random.uniform first rest
         |> Random.map
             (\babyPos ->
-                birthRabbit { babyPos = babyPos, parentPos = rabbitPos } rabbit grid
+                birthRabbit rabbitConfig { babyPos = babyPos, parentPos = rabbitPos } rabbit grid
             )
 
 
-eatRandomRabbit : ( Position, List Position ) -> Position -> Fox -> Grid -> Generator Grid
-eatRandomRabbit ( first, rest ) foxPos fox grid =
+eatRandomRabbit : ( Position, List Position ) -> FoxConfig -> Position -> Fox -> Grid -> Generator Grid
+eatRandomRabbit ( first, rest ) foxConfig foxPos fox grid =
     Random.uniform first rest
         |> Random.map
             (\rabbitPos ->
-                eatRabbit { rabbitPos = rabbitPos, foxPos = foxPos } fox grid
+                eatRabbit foxConfig { rabbitPos = rabbitPos, foxPos = foxPos } fox grid
             )
 
 
