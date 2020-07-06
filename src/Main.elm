@@ -46,6 +46,7 @@ type Game
 
 type alias GameState =
     { speed : SimSpeed
+    , daysElapsed : Int
     , grid : Grid
     , seed : Random.Seed
     , foxConfig : FoxConfig
@@ -65,7 +66,7 @@ generateNewGameState =
 
 gameStateGenerator : Generator GameState
 gameStateGenerator =
-    Random.map2 (\grid seed -> GameState Pause grid seed initialFoxConfig initialRabbitConfig)
+    Random.map2 (\grid seed -> GameState Pause 0 grid seed initialFoxConfig initialRabbitConfig)
         gridGenerator
         Random.independentSeed
 
@@ -137,7 +138,11 @@ update msg model =
                     step state
 
                 newState =
-                    { state | grid = newGrid, seed = newSeed }
+                    { state
+                        | grid = newGrid
+                        , seed = newSeed
+                        , daysElapsed = state.daysElapsed + 1
+                    }
 
                 { rabbits, foxes } =
                     populations newGrid
@@ -701,7 +706,7 @@ lostView state =
     Html.main_ []
         [ header
         , gameBoard state.grid
-        , lostControls
+        , lostControls state
         ]
 
 
@@ -710,11 +715,11 @@ header =
     Html.h1 [] [ Html.text "Ecosystem" ]
 
 
-lostControls : Html Msg
-lostControls =
+lostControls : GameState -> Html Msg
+lostControls state =
     Html.section [ Html.Attributes.class "controls" ]
         [ Html.h2 [] [ Html.text "Ecosystem collapsed!" ]
-        , resetControl
+        , resetControl state
         ]
 
 
@@ -722,7 +727,7 @@ controls : GameState -> Html Msg
 controls state =
     Html.section [ Html.Attributes.class "controls" ]
         [ speedControls state.speed
-        , resetControl
+        , resetControl state
         , foxConfigControls state.foxConfig
         , rabbitConfigControls state.rabbitConfig
         ]
@@ -755,11 +760,13 @@ speedLabel speed =
             "Pause"
 
 
-resetControl : Html Msg
-resetControl =
+resetControl : GameState -> Html Msg
+resetControl state =
     Html.fieldset []
         [ Html.legend [] [ Html.text "Reset" ]
         , Html.button [ Html.Events.onClick ResetClicked ] [ Html.text "Reset" ]
+        , Html.span [ Html.Attributes.class "score" ]
+            [ Html.text <| String.fromInt state.daysElapsed ++ " days" ]
         ]
 
 
