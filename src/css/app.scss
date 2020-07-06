@@ -48,6 +48,8 @@ td {
 // multi-toggle inspired by https://thestizmedia.com/radio-buttons-as-toggle-buttons-with-css/
 
 .multi-toggle {
+  padding-top: 15px;
+
   input {
     position: absolute !important;
     clip: rect(0, 0, 0, 0);

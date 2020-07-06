@@ -719,32 +719,46 @@ lostControls : GameState -> Html Msg
 lostControls state =
     Html.section [ Html.Attributes.class "controls" ]
         [ Html.h2 [] [ Html.text "Ecosystem collapsed!" ]
-        , resetControl state
+        , gameEndControls state
         ]
 
 
 controls : GameState -> Html Msg
 controls state =
     Html.section [ Html.Attributes.class "controls" ]
-        [ speedControls state.speed
-        , resetControl state
+        [ speedControls state
         , foxConfigControls state.foxConfig
         , rabbitConfigControls state.rabbitConfig
         ]
 
 
-speedControls : SimSpeed -> Html Msg
-speedControls currentSpeed =
+speedControls : GameState -> Html Msg
+speedControls state =
     Html.fieldset []
-        [ Html.legend [] [ Html.text "Speed" ]
+        [ Html.legend [] [ Html.text "Game Controls" ]
+        , Html.div []
+            [ resetButton
+            , score state.daysElapsed
+            ]
         , multiToggle
-            { selectedItem = currentSpeed
+            { selectedItem = state.speed
             , tagger = SimSpeedChanged
             , toLabel = speedLabel
             , groupName = "speed"
             }
             [ Pause, Play, DoubleSpeed ]
         ]
+
+
+resetButton : Html Msg
+resetButton =
+    Html.button [ Html.Events.onClick ResetClicked ] [ Html.text "Reset" ]
+
+
+score : Int -> Html a
+score daysElapsed =
+    Html.span [ Html.Attributes.class "score" ]
+        [ Html.text <| String.fromInt daysElapsed ++ " days" ]
 
 
 speedLabel : SimSpeed -> String
@@ -760,13 +774,12 @@ speedLabel speed =
             "Pause"
 
 
-resetControl : GameState -> Html Msg
-resetControl state =
+gameEndControls : GameState -> Html Msg
+gameEndControls state =
     Html.fieldset []
-        [ Html.legend [] [ Html.text "Reset" ]
-        , Html.button [ Html.Events.onClick ResetClicked ] [ Html.text "Reset" ]
-        , Html.span [ Html.Attributes.class "score" ]
-            [ Html.text <| String.fromInt state.daysElapsed ++ " days" ]
+        [ Html.legend [] [ Html.text "Game Over" ]
+        , resetButton
+        , score state.daysElapsed
         ]
 
 
