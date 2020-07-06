@@ -272,8 +272,7 @@ sumEnergies energies =
 
 
 type alias FoxConfig =
-    { initialEnergy : Energy
-    , costOfLiving : Energy
+    { costOfLiving : Energy
     , birthCost : Energy
     , rabbitNutrition : Energy
     }
@@ -281,16 +280,14 @@ type alias FoxConfig =
 
 initialFoxConfig : FoxConfig
 initialFoxConfig =
-    { initialEnergy = Energy 5
-    , costOfLiving = Energy 1
+    { costOfLiving = Energy 1
     , birthCost = Energy 3
     , rabbitNutrition = Energy 5
     }
 
 
 type FoxField
-    = InitialEnergy
-    | FoxCostOfLiving
+    = FoxCostOfLiving
     | FoxBirthCost
     | RabbitNutrition
 
@@ -298,9 +295,6 @@ type FoxField
 setFoxConfigField : FoxField -> Energy -> FoxConfig -> FoxConfig
 setFoxConfigField field energy config =
     case field of
-        InitialEnergy ->
-            { config | initialEnergy = energy }
-
         FoxCostOfLiving ->
             { config | costOfLiving = energy }
 
@@ -395,7 +389,6 @@ type alias RabbitConfig =
     { costOfLiving : Energy
     , grassNutrition : Energy
     , birthCost : Energy
-    , initialEnergy : Energy
     }
 
 
@@ -420,8 +413,7 @@ setRabbitConfigField field energy config =
 
 initialRabbitConfig : RabbitConfig
 initialRabbitConfig =
-    { initialEnergy = Energy 5
-    , costOfLiving = Energy 1
+    { costOfLiving = Energy 1
     , grassNutrition = Energy 3
     , birthCost = Energy 2
     }
