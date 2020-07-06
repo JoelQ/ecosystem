@@ -1,6 +1,6 @@
 # Ecosystem
 
-Ecosystem balancing simulator, originally built for [Elm gamejam #4](https://itch.io/jam/elm-game-jam-4)
+Ecosystem balancing simulator, originally built for [Elm gamejam #4](https://itch.io/jam/elm-game-jam-4). It can be played on the [game's website](https://elm-ecosystem.netlify.app) or on [itch.io](https://joelq.itch.io/ecosystem)
 
 <img width="611" alt="ecosystem-1-0-0-start" src="https://user-images.githubusercontent.com/1006966/86554925-ef1f0b00-bf1c-11ea-9f56-164febfb2ee0.png">
 
