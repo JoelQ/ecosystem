@@ -121,7 +121,8 @@ type Msg
     | Tick
     | SimSpeedChanged SimSpeed
     | ResetClicked
-    | FoxConfigChanged FoxConfigField Energy
+    | FoxConfigChanged FoxField Energy
+    | RabbitConfigChanged RabbitField Energy
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -156,6 +157,13 @@ update msg model =
                     setFoxConfigField field newCost state.foxConfig
             in
             ( Playing { state | foxConfig = newFoxConfig }, Cmd.none )
+
+        ( Playing ({ rabbitConfig } as state), RabbitConfigChanged field newCost ) ->
+            let
+                newRabbitConfig =
+                    setRabbitConfigField field newCost state.rabbitConfig
+            in
+            ( Playing { state | rabbitConfig = newRabbitConfig }, Cmd.none )
 
         ( _, ResetClicked ) ->
             ( model, generateNewGameState )
@@ -280,23 +288,23 @@ initialFoxConfig =
     }
 
 
-type FoxConfigField
+type FoxField
     = InitialEnergy
-    | CostOfLiving
-    | BirthCost
+    | FoxCostOfLiving
+    | FoxBirthCost
     | RabbitNutrition
 
 
-setFoxConfigField : FoxConfigField -> Energy -> FoxConfig -> FoxConfig
+setFoxConfigField : FoxField -> Energy -> FoxConfig -> FoxConfig
 setFoxConfigField field energy config =
     case field of
         InitialEnergy ->
             { config | initialEnergy = energy }
 
-        CostOfLiving ->
+        FoxCostOfLiving ->
             { config | costOfLiving = energy }
 
-        BirthCost ->
+        FoxBirthCost ->
             { config | birthCost = energy }
 
         RabbitNutrition ->
@@ -389,6 +397,25 @@ type alias RabbitConfig =
     , birthCost : Energy
     , initialEnergy : Energy
     }
+
+
+type RabbitField
+    = RabbitCostOfLiving
+    | GrassNutrition
+    | RabbitBirthCost
+
+
+setRabbitConfigField : RabbitField -> Energy -> RabbitConfig -> RabbitConfig
+setRabbitConfigField field energy config =
+    case field of
+        RabbitCostOfLiving ->
+            { config | costOfLiving = energy }
+
+        GrassNutrition ->
+            { config | grassNutrition = energy }
+
+        RabbitBirthCost ->
+            { config | birthCost = energy }
 
 
 initialRabbitConfig : RabbitConfig
@@ -705,6 +732,7 @@ controls state =
         [ speedControls state.speed
         , resetControl
         , foxConfigControls state.foxConfig
+        , rabbitConfigControls state.rabbitConfig
         ]
 
 
@@ -750,17 +778,39 @@ foxConfigControls config =
         , range
             { label = "Metabolism"
             , value = energyToInt config.costOfLiving
-            , tagger = FoxConfigChanged CostOfLiving << Energy
+            , tagger = FoxConfigChanged FoxCostOfLiving << Energy
             }
         , range
             { label = "Birth Cost"
             , value = energyToInt config.birthCost
-            , tagger = FoxConfigChanged BirthCost << Energy
+            , tagger = FoxConfigChanged FoxBirthCost << Energy
             }
         , range
             { label = "Rabbit Nutrition"
             , value = energyToInt config.rabbitNutrition
             , tagger = FoxConfigChanged RabbitNutrition << Energy
+            }
+        ]
+
+
+rabbitConfigControls : RabbitConfig -> Html Msg
+rabbitConfigControls config =
+    Html.fieldset []
+        [ Html.legend [] [ Html.text "Rabbit Config" ]
+        , range
+            { label = "Metabolism"
+            , value = energyToInt config.costOfLiving
+            , tagger = RabbitConfigChanged RabbitCostOfLiving << Energy
+            }
+        , range
+            { label = "Birth Cost"
+            , value = energyToInt config.birthCost
+            , tagger = RabbitConfigChanged RabbitBirthCost << Energy
+            }
+        , range
+            { label = "Grass Nutrition"
+            , value = energyToInt config.grassNutrition
+            , tagger = RabbitConfigChanged GrassNutrition << Energy
             }
         ]
 
