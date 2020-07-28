@@ -12,7 +12,8 @@
             "elm/json": "1.1.3",
             "elm/random": "1.0.0",
             "elm/time": "1.0.0",
-            "elm-community/list-extra": "8.2.4"
+            "elm-community/list-extra": "8.2.4",
+            "turboMaCk/non-empty-list-alias": "1.1.0"
         },
         "indirect": {
             "elm/url": "1.0.0",
