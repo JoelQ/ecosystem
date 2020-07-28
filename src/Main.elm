@@ -2,6 +2,7 @@ module Main exposing (main)
 
 import Browser
 import CellGrid exposing (CellGrid, Position)
+import Energy exposing (Energy)
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
@@ -214,62 +215,25 @@ stepAnimal { foxConfig, rabbitConfig } position cell grid =
 -- ENERGY
 
 
-type Energy
-    = Energy Int
-
-
-energyToInt : Energy -> Int
-energyToInt (Energy e) =
-    e
-
-
 hasEnergy : { a | energy : Energy } -> Bool
 hasEnergy animal =
-    let
-        (Energy energy) =
-            animal.energy
-    in
-    energy > 0
+    Energy.isPositive animal.energy
 
 
 consumeEnergy : Energy -> { a | energy : Energy } -> { a | energy : Energy }
-consumeEnergy (Energy cost) animal =
-    let
-        (Energy animalEnergy) =
-            animal.energy
-    in
-    { animal | energy = Energy (animalEnergy - cost) }
+consumeEnergy cost animal =
+    { animal | energy = animal.energy |> Energy.subtract cost }
 
 
 gainEnergy : Energy -> { a | energy : Energy } -> { a | energy : Energy }
-gainEnergy (Energy newEnergy) animal =
-    let
-        (Energy animalEnergy) =
-            animal.energy
-    in
-    { animal | energy = Energy (animalEnergy + newEnergy) }
+gainEnergy newEnergy animal =
+    { animal | energy = Energy.add animal.energy newEnergy }
 
 
 canSupportCosts : List Energy -> { a | energy : Energy } -> Bool
 canSupportCosts costs animal =
-    let
-        (Energy totalCost) =
-            sumEnergies costs
-
-        (Energy animalEnergy) =
-            animal.energy
-    in
-    animalEnergy > totalCost
-
-
-addEnergy : Energy -> Energy -> Energy
-addEnergy (Energy e1) (Energy e2) =
-    Energy (e1 + e2)
-
-
-sumEnergies : List Energy -> Energy
-sumEnergies energies =
-    List.foldl addEnergy (Energy 0) energies
+    animal.energy
+        |> Energy.isGreaterThan (Energy.sum costs)
 
 
 
@@ -285,9 +249,9 @@ type alias FoxConfig =
 
 initialFoxConfig : FoxConfig
 initialFoxConfig =
-    { costOfLiving = Energy 1
-    , birthCost = Energy 3
-    , rabbitNutrition = Energy 5
+    { costOfLiving = Energy.fromInt 1
+    , birthCost = Energy.fromInt 3
+    , rabbitNutrition = Energy.fromInt 5
     }
 
 
@@ -316,7 +280,7 @@ type alias Fox =
 
 initialFox : Fox
 initialFox =
-    { energy = Energy 5 }
+    { energy = Energy.fromInt 5 }
 
 
 stepFox : FoxConfig -> Position -> Fox -> Grid -> Generator Grid
@@ -387,7 +351,7 @@ type alias Rabbit =
 
 initialRabbit : Rabbit
 initialRabbit =
-    { energy = Energy 5 }
+    { energy = Energy.fromInt 5 }
 
 
 type alias RabbitConfig =
@@ -418,9 +382,9 @@ setRabbitConfigField field energy config =
 
 initialRabbitConfig : RabbitConfig
 initialRabbitConfig =
-    { costOfLiving = Energy 1
-    , grassNutrition = Energy 3
-    , birthCost = Energy 2
+    { costOfLiving = Energy.fromInt 1
+    , grassNutrition = Energy.fromInt 3
+    , birthCost = Energy.fromInt 2
     }
 
 
@@ -790,18 +754,18 @@ foxConfigControls config =
         [ Html.legend [] [ Html.text "Fox Config" ]
         , range
             { label = "Metabolism"
-            , value = energyToInt config.costOfLiving
-            , tagger = FoxConfigChanged FoxCostOfLiving << Energy
+            , value = Energy.toInt config.costOfLiving
+            , tagger = FoxConfigChanged FoxCostOfLiving << Energy.fromInt
             }
         , range
             { label = "Birth Cost"
-            , value = energyToInt config.birthCost
-            , tagger = FoxConfigChanged FoxBirthCost << Energy
+            , value = Energy.toInt config.birthCost
+            , tagger = FoxConfigChanged FoxBirthCost << Energy.fromInt
             }
         , range
             { label = "Rabbit Nutrition"
-            , value = energyToInt config.rabbitNutrition
-            , tagger = FoxConfigChanged RabbitNutrition << Energy
+            , value = Energy.toInt config.rabbitNutrition
+            , tagger = FoxConfigChanged RabbitNutrition << Energy.fromInt
             }
         ]
 
@@ -812,18 +776,18 @@ rabbitConfigControls config =
         [ Html.legend [] [ Html.text "Rabbit Config" ]
         , range
             { label = "Metabolism"
-            , value = energyToInt config.costOfLiving
-            , tagger = RabbitConfigChanged RabbitCostOfLiving << Energy
+            , value = Energy.toInt config.costOfLiving
+            , tagger = RabbitConfigChanged RabbitCostOfLiving << Energy.fromInt
             }
         , range
             { label = "Birth Cost"
-            , value = energyToInt config.birthCost
-            , tagger = RabbitConfigChanged RabbitBirthCost << Energy
+            , value = Energy.toInt config.birthCost
+            , tagger = RabbitConfigChanged RabbitBirthCost << Energy.fromInt
             }
         , range
             { label = "Grass Nutrition"
-            , value = energyToInt config.grassNutrition
-            , tagger = RabbitConfigChanged GrassNutrition << Energy
+            , value = Energy.toInt config.grassNutrition
+            , tagger = RabbitConfigChanged GrassNutrition << Energy.fromInt
             }
         ]
 
@@ -920,11 +884,11 @@ hungerAwareValue energy content =
 
 
 hungerClass : Energy -> String
-hungerClass (Energy energy) =
-    if energy > 3 then
+hungerClass energy =
+    if Energy.toInt energy > 3 then
         "full"
 
-    else if energy > 1 then
+    else if Energy.toInt energy > 1 then
         "hungry"
 
     else
