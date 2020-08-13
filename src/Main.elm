@@ -1,14 +1,15 @@
 module Main exposing (main)
 
 import Browser
+import Cell exposing (Cell(..), Fox, Rabbit)
 import CellGrid exposing (CellGrid, Position)
 import CellGrid.Extra as CellGrid
 import Energy exposing (Energy)
+import Grid exposing (Grid)
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
 import Json.Decode as Decode exposing (Decoder)
-import List.Extra
 import List.NonEmpty as NonEmpty exposing (NonEmpty)
 import Random exposing (Generator)
 import Time
@@ -70,7 +71,7 @@ generateNewGameState =
 gameStateGenerator : Generator GameState
 gameStateGenerator =
     Random.map2 (\grid seed -> GameState Pause 0 grid seed initialFoxConfig initialRabbitConfig)
-        gridGenerator
+        Grid.generator
         Random.independentSeed
 
 
@@ -78,42 +79,6 @@ type SimSpeed
     = Play
     | Pause
     | DoubleSpeed
-
-
-type alias Grid =
-    CellGrid Cell
-
-
-emptyGrid : Grid
-emptyGrid =
-    CellGrid.repeat gridDimensions Empty
-
-
-gridDimensions : CellGrid.Dimensions
-gridDimensions =
-    { rows = 10, columns = 10 }
-
-
-type Cell
-    = FoxCell Fox
-    | RabbitCell Rabbit
-    | Empty
-
-
-gridGenerator : Generator Grid
-gridGenerator =
-    Random.list (gridDimensions.columns * gridDimensions.rows) cellGenerator
-        |> Random.map gridFromList
-
-
-gridFromList : List Cell -> Grid
-gridFromList =
-    Maybe.withDefault emptyGrid << CellGrid.fromList gridDimensions
-
-
-cellGenerator : Generator Cell
-cellGenerator =
-    Random.weighted ( 1, FoxCell initialFox ) [ ( 2, RabbitCell initialRabbit ), ( 3, Empty ) ]
 
 
 
@@ -148,7 +113,7 @@ update msg model =
                     }
 
                 { rabbits, foxes } =
-                    populations newGrid
+                    Grid.populations newGrid
             in
             if foxes > 0 && rabbits > 0 then
                 ( Playing newState, Cmd.none )
@@ -276,15 +241,6 @@ setFoxConfigField field energy config =
             { config | rabbitNutrition = energy }
 
 
-type alias Fox =
-    { energy : Energy }
-
-
-initialFox : Fox
-initialFox =
-    { energy = Energy.fromInt 5 }
-
-
 stepFox : FoxConfig -> Position -> Fox -> Grid -> Generator Grid
 stepFox ({ costOfLiving } as foxConfig) position fox grid =
     if hasEnergy fox then
@@ -292,12 +248,12 @@ stepFox ({ costOfLiving } as foxConfig) position fox grid =
 
     else
         -- Fox starved to death
-        Random.constant <| setEmpty position grid
+        Random.constant <| Grid.setEmpty position grid
 
 
 foxActions : FoxConfig -> Position -> Fox -> Grid -> Generator Grid
 foxActions foxConfig foxPos fox grid =
-    case NonEmpty.fromList <| positions (nearbyRabbits foxPos grid) of
+    case NonEmpty.fromList <| positions (Grid.nearbyRabbits foxPos grid) of
         Nothing ->
             case NonEmpty.fromList <| foxValidBirthPositions foxConfig foxPos fox grid of
                 Just birthPositions ->
@@ -320,14 +276,14 @@ birthFox { birthCost } { babyPos, parentPos } parent grid =
 eatRabbit : FoxConfig -> { rabbitPos : Position, foxPos : Position } -> Fox -> Grid -> Grid
 eatRabbit { rabbitNutrition } { rabbitPos, foxPos } fox grid =
     grid
-        |> setEmpty rabbitPos
+        |> Grid.setEmpty rabbitPos
         |> CellGrid.set foxPos (FoxCell (gainEnergy rabbitNutrition fox))
 
 
 foxValidBirthPositions : FoxConfig -> Position -> Fox -> Grid -> List Position
 foxValidBirthPositions { birthCost, costOfLiving } position fox grid =
     if canSupportCosts [ birthCost, costOfLiving ] fox then
-        positions (nearbyEmpties position grid)
+        positions (Grid.nearbyEmpties position grid)
 
     else
         []
@@ -340,15 +296,6 @@ positions =
 
 
 -- RABBIT
-
-
-type alias Rabbit =
-    { energy : Energy }
-
-
-initialRabbit : Rabbit
-initialRabbit =
-    { energy = Energy.fromInt 5 }
 
 
 type alias RabbitConfig =
@@ -392,12 +339,12 @@ stepRabbit ({ costOfLiving } as rabbitConfig) position rabbit grid =
 
     else
         -- Rabbit starved to death
-        Random.constant <| setEmpty position grid
+        Random.constant <| Grid.setEmpty position grid
 
 
 rabbitActions : RabbitConfig -> Position -> Rabbit -> Grid -> Generator Grid
 rabbitActions rabbitConfig rabbitPos rabbit grid =
-    if isSafe rabbitPos grid then
+    if Grid.isSafe rabbitPos grid then
         case NonEmpty.fromList <| rabbitValidBirthPosition rabbitConfig rabbitPos rabbit grid of
             Just birthPositions ->
                 birthRabbitAtRandomPosition birthPositions rabbitConfig rabbitPos rabbit grid
@@ -427,7 +374,7 @@ birthRabbit { birthCost } { babyPos, parentPos } parent grid =
 
 moveToSafetyFrom : Position -> Rabbit -> Grid -> Generator Grid
 moveToSafetyFrom position rabbit grid =
-    case NonEmpty.fromList <| positions (nearbySafeEmpties position grid) of
+    case NonEmpty.fromList <| positions (Grid.nearbySafeEmpties position grid) of
         Nothing ->
             Random.constant grid
 
@@ -438,7 +385,7 @@ moveToSafetyFrom position rabbit grid =
 rabbitValidBirthPosition : RabbitConfig -> Position -> Rabbit -> Grid -> List Position
 rabbitValidBirthPosition { birthCost, costOfLiving } position rabbit grid =
     if canSupportCosts [ birthCost, costOfLiving ] rabbit then
-        positions (nearbySafeEmpties position grid)
+        positions (Grid.nearbySafeEmpties position grid)
 
     else
         []
@@ -450,7 +397,7 @@ rabbitValidBirthPosition { birthCost, costOfLiving } position rabbit grid =
 
 moveToEmptyFrom : Position -> Cell -> Grid -> Generator Grid
 moveToEmptyFrom position cell grid =
-    case NonEmpty.fromList <| positions (nearbyEmpties position grid) of
+    case NonEmpty.fromList <| positions (Grid.nearbyEmpties position grid) of
         Nothing ->
             Random.constant grid
 
@@ -463,7 +410,7 @@ moveToRandomPosition movePositions position cell grid =
     uniform movePositions
         |> Random.map
             (\newPos ->
-                move { from = position, to = newPos } cell grid
+                Grid.move { from = position, to = newPos } cell grid
             )
 
 
@@ -497,135 +444,6 @@ eatRandomRabbit rabbits foxConfig foxPos fox grid =
 uniform : NonEmpty a -> Generator a
 uniform ( first, rest ) =
     Random.uniform first rest
-
-
-{-| Moving an entity requires two operations on a grid:
-
-1.  Setting the original position to "Empty"
-2.  Inserting the entity at the new position
-
-Wrapping this up in a move function makes it harder to accidentally delete or
-duplicate the entity by forgetting either of the required steps
-
--}
-move : { from : Position, to : Position } -> Cell -> Grid -> Grid
-move { from, to } cell grid =
-    grid
-        |> setEmpty from
-        |> CellGrid.set to cell
-
-
-setEmpty : Position -> Grid -> Grid
-setEmpty position grid =
-    CellGrid.set position Empty grid
-
-
-nearbyRabbits : Position -> Grid -> List ( Position, Cell )
-nearbyRabbits =
-    neighborsWhere (isRabbit << Tuple.second)
-
-
-nearbyFoxes : Position -> Grid -> List ( Position, Cell )
-nearbyFoxes =
-    neighborsWhere (isFox << Tuple.second)
-
-
-nearbyEmpties : Position -> Grid -> List ( Position, Cell )
-nearbyEmpties =
-    neighborsWhere (isEmpty << Tuple.second)
-
-
-nearbySafeEmpties : Position -> Grid -> List ( Position, Cell )
-nearbySafeEmpties position grid =
-    neighborsWhere (isSafeEmpty grid) position grid
-
-
-neighborsWhere : (( Position, Cell ) -> Bool) -> Position -> Grid -> List ( Position, Cell )
-neighborsWhere filterFunc position grid =
-    grid
-        |> CellGrid.neighborsWithPositions position
-        |> List.filter filterFunc
-
-
-isSafeEmpty : Grid -> ( Position, Cell ) -> Bool
-isSafeEmpty grid ( position, cell ) =
-    isEmpty cell && isSafe position grid
-
-
-isSafe : Position -> Grid -> Bool
-isSafe position grid =
-    grid
-        |> nearbyFoxes position
-        |> List.isEmpty
-
-
-isRabbit : Cell -> Bool
-isRabbit cell =
-    case cell of
-        RabbitCell _ ->
-            True
-
-        _ ->
-            False
-
-
-isFox : Cell -> Bool
-isFox cell =
-    case cell of
-        FoxCell _ ->
-            True
-
-        _ ->
-            False
-
-
-isEmpty : Cell -> Bool
-isEmpty cell =
-    case cell of
-        Empty ->
-            True
-
-        _ ->
-            False
-
-
-
--- STATS
-
-
-populations : Grid -> { rabbits : Int, foxes : Int }
-populations grid =
-    CellGrid.foldl
-        (\cell count ->
-            if isRabbit cell then
-                { count | rabbits = count.rabbits + 1 }
-
-            else if isFox cell then
-                { count | foxes = count.foxes + 1 }
-
-            else
-                count
-        )
-        { rabbits = 0, foxes = 0 }
-        grid
-
-
-energyStats : Grid -> { rabbits : Energy, foxes : Energy }
-energyStats grid =
-    CellGrid.foldl
-        (\cell stats ->
-            case cell of
-                Empty ->
-                    stats
-
-                FoxCell fox ->
-                    { stats | foxes = Energy.add stats.foxes fox.energy }
-
-                RabbitCell rabbit ->
-                    { stats | rabbits = Energy.add stats.rabbits rabbit.energy }
-        )
-        { rabbits = Energy.zero, foxes = Energy.zero }
-        grid
 
 
 
@@ -712,7 +530,7 @@ controls state =
         [ speedControls state
         , foxConfigControls state.foxConfig
         , rabbitConfigControls state.rabbitConfig
-        , statsBox (energyStats state.grid)
+        , statsBox (Grid.energyStats state.grid)
         , rules
         ]
 
