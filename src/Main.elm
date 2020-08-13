@@ -2,6 +2,7 @@ module Main exposing (main)
 
 import Browser
 import CellGrid exposing (CellGrid, Position)
+import CellGrid.Extra as CellGrid
 import Energy exposing (Energy)
 import Html exposing (Html)
 import Html.Attributes
@@ -191,7 +192,7 @@ update msg model =
 -}
 step : GameState -> ( Grid, Random.Seed )
 step state =
-    cellGridFoldlWithPosition
+    CellGrid.foldlWithPosition
         (\position cell ( newGrid, newSeed ) ->
             Random.step (stepAnimal state position cell newGrid) newSeed
         )
@@ -542,7 +543,7 @@ nearbySafeEmpties position grid =
 neighborsWhere : (( Position, Cell ) -> Bool) -> Position -> Grid -> List ( Position, Cell )
 neighborsWhere filterFunc position grid =
     grid
-        |> neighborsWithPositions position
+        |> CellGrid.neighborsWithPositions position
         |> List.filter filterFunc
 
 
@@ -969,26 +970,3 @@ radio { selectedItem, tagger, toLabel, groupName } item =
         []
     , Html.label [ Html.Attributes.for id ] [ Html.text (toLabel item) ]
     ]
-
-
-
--- CELL GRID HELPERS
-
-
-cellGridFoldlWithPosition : (Position -> a -> b -> b) -> b -> CellGrid a -> b
-cellGridFoldlWithPosition stepFunc initial grid =
-    grid
-        |> cellGridWithPositions
-        |> CellGrid.foldl (\( pos, item ) acc -> stepFunc pos item acc) initial
-
-
-neighborsWithPositions : Position -> CellGrid a -> List ( Position, a )
-neighborsWithPositions position grid =
-    grid
-        |> cellGridWithPositions
-        |> CellGrid.neighbors position
-
-
-cellGridWithPositions : CellGrid a -> CellGrid ( Position, a )
-cellGridWithPositions grid =
-    CellGrid.indexedMap (\x y item -> ( Position x y, item )) grid
