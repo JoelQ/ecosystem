@@ -558,23 +558,6 @@ isSafe position grid =
         |> List.isEmpty
 
 
-populations : Grid -> { rabbits : Int, foxes : Int }
-populations grid =
-    CellGrid.foldl
-        (\cell count ->
-            if isRabbit cell then
-                { count | rabbits = count.rabbits + 1 }
-
-            else if isFox cell then
-                { count | foxes = count.foxes + 1 }
-
-            else
-                count
-        )
-        { rabbits = 0, foxes = 0 }
-        grid
-
-
 isRabbit : Cell -> Bool
 isRabbit cell =
     case cell of
@@ -603,6 +586,45 @@ isEmpty cell =
 
         _ ->
             False
+
+
+
+-- STATS
+
+
+populations : Grid -> { rabbits : Int, foxes : Int }
+populations grid =
+    CellGrid.foldl
+        (\cell count ->
+            if isRabbit cell then
+                { count | rabbits = count.rabbits + 1 }
+
+            else if isFox cell then
+                { count | foxes = count.foxes + 1 }
+
+            else
+                count
+        )
+        { rabbits = 0, foxes = 0 }
+        grid
+
+
+energyStats : Grid -> { rabbits : Energy, foxes : Energy }
+energyStats grid =
+    CellGrid.foldl
+        (\cell stats ->
+            case cell of
+                Empty ->
+                    stats
+
+                FoxCell fox ->
+                    { stats | foxes = Energy.add stats.foxes fox.energy }
+
+                RabbitCell rabbit ->
+                    { stats | rabbits = Energy.add stats.rabbits rabbit.energy }
+        )
+        { rabbits = Energy.zero, foxes = Energy.zero }
+        grid
 
 
 
@@ -689,6 +711,7 @@ controls state =
         [ speedControls state
         , foxConfigControls state.foxConfig
         , rabbitConfigControls state.rabbitConfig
+        , statsBox (energyStats state.grid)
         , rules
         ]
 
@@ -825,6 +848,19 @@ fromMaybe maybe =
 
         Nothing ->
             Decode.fail "was Nothing"
+
+
+statsBox : { rabbits : Energy, foxes : Energy } -> Html a
+statsBox { rabbits, foxes } =
+    Html.fieldset []
+        [ Html.legend [] [ Html.text "Stats" ]
+        , Html.dl []
+            [ Html.dt [] [ Html.text "Rabbit Energy" ]
+            , Html.dd [] [ Html.text <| String.fromInt <| Energy.toInt rabbits ]
+            , Html.dt [] [ Html.text "Fox Energy" ]
+            , Html.dd [] [ Html.text <| String.fromInt <| Energy.toInt foxes ]
+            ]
+        ]
 
 
 rules : Html a

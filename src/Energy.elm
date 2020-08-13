@@ -7,6 +7,7 @@ module Energy exposing
     , subtract
     , sum
     , toInt
+    , zero
     )
 
 
@@ -26,6 +27,11 @@ toInt (Energy e) =
 fromInt : Int -> Energy
 fromInt =
     Energy
+
+
+zero : Energy
+zero =
+    Energy 0
 
 
 
