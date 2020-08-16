@@ -10,8 +10,22 @@ import Html exposing (Html)
 import Html.Attributes
 import Html.Events
 import Json.Decode as Decode exposing (Decoder)
+import LineChart
+import LineChart.Area
+import LineChart.Axis
+import LineChart.Axis.Intersection
+import LineChart.Colors
+import LineChart.Container
+import LineChart.Dots
+import LineChart.Events
+import LineChart.Grid
+import LineChart.Interpolation
+import LineChart.Junk
+import LineChart.Legends
+import LineChart.Line
 import List.NonEmpty as NonEmpty exposing (NonEmpty)
 import Random exposing (Generator)
+import Svg exposing (Svg)
 import Time
 
 
@@ -503,7 +517,7 @@ view model =
 loadingView : Html Msg
 loadingView =
     Html.main_ []
-        [ header
+        [ gameTitle
         , Html.div [] [ Html.text "Loading" ]
         ]
 
@@ -511,7 +525,7 @@ loadingView =
 playingView : GameState -> Html Msg
 playingView state =
     Html.main_ []
-        [ header
+        [ header state.energyHistory
         , gameBoard state.grid
         , controls state
         ]
@@ -520,15 +534,23 @@ playingView state =
 lostView : GameState -> Html Msg
 lostView state =
     Html.main_ []
-        [ header
+        [ header state.energyHistory
         , gameBoard state.grid
         , lostControls state
         ]
 
 
-header : Html a
-header =
+gameTitle : Html a
+gameTitle =
     Html.h1 [] [ Html.text "Ecosystem" ]
+
+
+header : NonEmpty Grid.EnergyStat -> Html a
+header history =
+    Html.header []
+        [ gameTitle
+        , statsGraph history
+        ]
 
 
 lostControls : GameState -> Html Msg
@@ -545,7 +567,6 @@ controls state =
         [ speedControls state
         , foxConfigControls state.foxConfig
         , rabbitConfigControls state.rabbitConfig
-        , statsBox state.energyHistory
         , rules
         ]
 
@@ -684,25 +705,46 @@ fromMaybe maybe =
             Decode.fail "was Nothing"
 
 
-statsBox : NonEmpty Grid.EnergyStat -> Html a
-statsBox history =
+statsGraph : NonEmpty Grid.EnergyStat -> Html a
+statsGraph history =
     let
-        statText accessor =
-            history
+        toSeries accessor hist =
+            hist
                 |> NonEmpty.toList
                 |> List.reverse
-                |> List.map (String.fromInt << Energy.toInt << accessor)
-                |> String.join ", "
+                |> List.indexedMap (\idx entry -> { day = idx, value = accessor entry })
     in
-    Html.fieldset []
-        [ Html.legend [] [ Html.text "Stats" ]
-        , Html.dl []
-            [ Html.dt [] [ Html.text "Rabbit Energy" ]
-            , Html.dd [] [ Html.text (statText .rabbits) ]
-            , Html.dt [] [ Html.text "Fox Energy" ]
-            , Html.dd [] [ Html.text (statText .foxes) ]
-            ]
+    view2Area
+        (toFloat << .day)
+        (toFloat << Energy.toInt << .value)
+        (toSeries .foxes history)
+        (toSeries .rabbits history)
+
+
+view2Area : (data -> Float) -> (data -> Float) -> List data -> List data -> Html msg
+view2Area toX toY series1 series2 =
+    LineChart.viewCustom
+        (areaChartConfig toX toY)
+        [ LineChart.line LineChart.Colors.rust LineChart.Dots.none "Foxes" series1
+        , LineChart.line LineChart.Colors.grayLight LineChart.Dots.none "Rabbits" series2
         ]
+
+
+areaChartConfig : (a -> Float) -> (a -> Float) -> LineChart.Config a msg
+areaChartConfig toX toY =
+    { y = LineChart.Axis.default 300 "Energy" toY
+    , x = LineChart.Axis.default 1200 "Days" toX
+    , container = LineChart.Container.default "line-chart-1"
+    , interpolation = LineChart.Interpolation.default
+    , intersection = LineChart.Axis.Intersection.default
+    , legends = LineChart.Legends.default
+    , events = LineChart.Events.default
+    , junk = LineChart.Junk.default
+    , grid = LineChart.Grid.default
+    , area = LineChart.Area.stacked 1
+    , line = LineChart.Line.default
+    , dots = LineChart.Dots.default
+    }
 
 
 rules : Html a
