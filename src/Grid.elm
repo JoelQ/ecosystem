@@ -1,5 +1,6 @@
 module Grid exposing
-    ( Grid
+    ( EnergyStat
+    , Grid
     , empty
     , energyStats
     , generator
@@ -142,7 +143,11 @@ populations grid =
         grid
 
 
-energyStats : Grid -> { rabbits : Energy, foxes : Energy }
+type alias EnergyStat =
+    { rabbits : Energy, foxes : Energy }
+
+
+energyStats : Grid -> EnergyStat
 energyStats grid =
     CellGrid.foldl
         (\cell stats ->

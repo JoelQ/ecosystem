@@ -55,6 +55,7 @@ type alias GameState =
     , seed : Random.Seed
     , foxConfig : FoxConfig
     , rabbitConfig : RabbitConfig
+    , energyHistory : NonEmpty Grid.EnergyStat
     }
 
 
@@ -70,7 +71,17 @@ generateNewGameState =
 
 gameStateGenerator : Generator GameState
 gameStateGenerator =
-    Random.map2 (\grid seed -> GameState Pause 0 grid seed initialFoxConfig initialRabbitConfig)
+    Random.map2
+        (\grid seed ->
+            { speed = Pause
+            , daysElapsed = 0
+            , grid = grid
+            , seed = seed
+            , foxConfig = initialFoxConfig
+            , rabbitConfig = initialRabbitConfig
+            , energyHistory = NonEmpty.singleton (Grid.energyStats grid)
+            }
+        )
         Grid.generator
         Random.independentSeed
 
@@ -110,6 +121,10 @@ update msg model =
                         | grid = newGrid
                         , seed = newSeed
                         , daysElapsed = state.daysElapsed + 1
+                        , energyHistory =
+                            NonEmpty.cons
+                                (Grid.energyStats newGrid)
+                                state.energyHistory
                     }
 
                 { rabbits, foxes } =
@@ -530,7 +545,7 @@ controls state =
         [ speedControls state
         , foxConfigControls state.foxConfig
         , rabbitConfigControls state.rabbitConfig
-        , statsBox (Grid.energyStats state.grid)
+        , statsBox state.energyHistory
         , rules
         ]
 
@@ -669,15 +684,23 @@ fromMaybe maybe =
             Decode.fail "was Nothing"
 
 
-statsBox : { rabbits : Energy, foxes : Energy } -> Html a
-statsBox { rabbits, foxes } =
+statsBox : NonEmpty Grid.EnergyStat -> Html a
+statsBox history =
+    let
+        statText accessor =
+            history
+                |> NonEmpty.toList
+                |> List.reverse
+                |> List.map (String.fromInt << Energy.toInt << accessor)
+                |> String.join ", "
+    in
     Html.fieldset []
         [ Html.legend [] [ Html.text "Stats" ]
         , Html.dl []
             [ Html.dt [] [ Html.text "Rabbit Energy" ]
-            , Html.dd [] [ Html.text <| String.fromInt <| Energy.toInt rabbits ]
+            , Html.dd [] [ Html.text (statText .rabbits) ]
             , Html.dt [] [ Html.text "Fox Energy" ]
-            , Html.dd [] [ Html.text <| String.fromInt <| Energy.toInt foxes ]
+            , Html.dd [] [ Html.text (statText .foxes) ]
             ]
         ]
 
