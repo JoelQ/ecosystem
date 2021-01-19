@@ -4,6 +4,7 @@ module Energy exposing
     , fromInt
     , isGreaterThan
     , isPositive
+    , min
     , subtract
     , sum
     , toInt
@@ -79,3 +80,8 @@ pipeline like:
 subtract : Energy -> Energy -> Energy
 subtract (Energy e1) (Energy e2) =
     Energy (e2 - e1)
+
+
+min : Energy -> Energy -> Energy
+min (Energy e1) (Energy e2) =
+    Energy <| Basics.min e1 e2

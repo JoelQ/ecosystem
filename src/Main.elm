@@ -221,9 +221,18 @@ consumeEnergy cost animal =
     { animal | energy = animal.energy |> Energy.subtract cost }
 
 
+maxEnergy : Energy
+maxEnergy =
+    Energy.fromInt 5
+
+
 gainEnergy : Energy -> { a | energy : Energy } -> { a | energy : Energy }
 gainEnergy newEnergy animal =
-    { animal | energy = Energy.add animal.energy newEnergy }
+    let
+        totalEnergy =
+            Energy.add animal.energy newEnergy
+    in
+    { animal | energy = Energy.min totalEnergy maxEnergy }
 
 
 canSupportCosts : List Energy -> { a | energy : Energy } -> Bool
